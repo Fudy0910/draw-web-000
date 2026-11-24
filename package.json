@@ -1,0 +1,40 @@
+{
+  "name": "digital-whiteboard",
+  "version": "1.0.0",
+  "description": "數位白板桌面應用程式",
+  "main": "main.js",
+  "author": "Fudy",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.fudy.digital-whiteboard",
+    "productName": "數位白板",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "數位白板_Setup_${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "數位白板"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "package.json"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  }
+}
