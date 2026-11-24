@@ -145,8 +145,8 @@ ipcMain.handle('app:minimize-to-corner', event => {
   if (!win || win.isDestroyed()) return;
 
   const { workArea } = screen.getDisplayMatching(win.getBounds());
-  const width = 116;
-  const height = 64;
+  const width = 52;
+  const height = 96;
   const margin = 12;
 
   win.setKiosk(false);

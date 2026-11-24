@@ -55,31 +55,43 @@
     .toolbar {
       background: #333;
       color: white;
-      width: calc(72px + env(safe-area-inset-right));
-      padding: calc(10px + env(safe-area-inset-top)) calc(4px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) 4px;
+      width: calc(60px + env(safe-area-inset-right));
+      padding: calc(6px + env(safe-area-inset-top)) calc(3px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) 3px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
+      position: fixed;
+      top: 50%;
+      right: 0;
+      height: fit-content;
+      max-height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+      min-height: 0;
+      margin: 0;
       z-index: 100;
       flex-shrink: 0;
       overflow-y: auto;
       overflow-x: visible;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+      transform: translateY(-50%);
     }
     .toolbar::-webkit-scrollbar { display: none; }
+    #minimizeBtn { order: 1; }
+    body.toolbar-left #mainToolbar { right: auto; left: 0; }
     .toolbar button, .toolbar label {
-      width: 56px;
-      height: 50px;
-      min-height: 50px;
-      padding: 4px 2px;
+      width: 46px;
+      height: 42px;
+      min-height: 42px;
+      padding: 3px 2px;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       cursor: pointer;
       background: #555;
       color: white;
-      font-size: 13px;
+      font-size: 11px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -103,6 +115,35 @@
     .toolbar button.close-btn:hover { background: #dc3545; }
     .toolbar button.minimize-btn { background: #6c757d; }
     .toolbar button.minimize-btn:hover { background: #4c5965; }
+    body.toolbar-left #advancedPanel,
+    body.toolbar-left .sub-menu {
+      left: calc(66px + env(safe-area-inset-left));
+      right: auto;
+    }
+    body.toolbar-left #advancedPanel { max-width: calc(100vw - 80px - env(safe-area-inset-left)); }
+    #toolbarSideToggle {
+      position: fixed;
+      top: 50%;
+      left: 12px;
+      z-index: 620;
+      display: flex;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: #333;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+      cursor: pointer;
+      transform: translateY(-50%);
+    }
+    body.toolbar-left #toolbarSideToggle { right: 12px; left: auto; }
+    #toolbarSideToggle:hover { background: #007bff; }
+    #toolbarSideToggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    body.toolbar-left #toolbarSideToggle svg { transform: scaleX(-1); }
     [hidden] { display: none !important; }
 
     html:has(body.compact), body.compact {
@@ -111,18 +152,20 @@
     body.compact > *:not(#miniControls) { display: none !important; }
     #miniControls {
       display: none;
-      width: calc(100% - 8px);
-      height: calc(100% - 8px);
+      flex-direction: column;
+      width: calc(100% - 6px);
+      height: calc(100% - 6px);
       align-items: center;
       justify-content: center;
       margin: auto;
-      gap: 6px;
-      padding: 6px;
+      gap: 4px;
+      padding: 4px;
       background: #2b3137;
       border: 1px solid #48515a;
-      border-radius: 12px;
+      border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.42);
       transition: box-shadow 360ms ease;
+      cursor: grab;
       -webkit-app-region: drag;
     }
     body.compact #miniControls { display: flex; }
@@ -131,13 +174,14 @@
     }
     .mini-control-btn {
       display: flex;
-      width: 40px;
-      height: 40px;
+      width: 34px;
+      height: 34px;
+      flex-shrink: 0;
       align-items: center;
       justify-content: center;
       padding: 0;
       border: 0;
-      border-radius: 8px;
+      border-radius: 7px;
       background: #444d56;
       color: #fff;
       cursor: pointer;
@@ -147,7 +191,7 @@
     .mini-control-btn:hover { background: #007bff; }
     .mini-control-btn:active { transform: scale(0.95); }
     .mini-control-btn:disabled { opacity: 0.55; cursor: wait; }
-    .mini-control-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .mini-control-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
     #windowPicker {
       position: fixed;
@@ -206,17 +250,17 @@
     .window-picker-item span { display: block; overflow: hidden; margin-top: 7px; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
     #windowPickerStatus { min-height: 18px; color: #cbd2d9; font-size: 13px; }
 
-    .toolbar svg.icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .toolbar svg.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     
     .dropdown-container { position: relative; width: 100%; display: flex; justify-content: center; flex-shrink: 0; }
     
     .advanced-panel {
       display: none;
       position: fixed;
-      right: calc(78px + env(safe-area-inset-right));
+      right: calc(66px + env(safe-area-inset-right));
       top: calc(140px + env(safe-area-inset-top));
       width: 240px;
-      max-width: calc(100vw - 92px - env(safe-area-inset-right));
+      max-width: calc(100vw - 80px - env(safe-area-inset-right));
       background: #2b3137;
       border: 1px solid #444;
       border-radius: 12px;
@@ -250,7 +294,7 @@
     .sub-menu {
       display: none;
       position: fixed;
-      right: calc(78px + env(safe-area-inset-right));
+      right: calc(66px + env(safe-area-inset-right));
       top: calc(110px + env(safe-area-inset-top));
       background: #333;
       border-radius: 10px;
@@ -258,10 +302,10 @@
       padding: 8px;
       z-index: 300;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .dropdown-container.show-sub .sub-menu { display: flex; }
-    .sub-menu button { background: #444; width: 54px; height: 54px; border-radius: 8px; justify-content: center; padding: 0; font-size: 18px; }
+    .sub-menu button { background: #444; width: 46px; height: 46px; border-radius: 7px; justify-content: center; padding: 0; font-size: 16px; }
     .sub-menu button.active { background: #007bff; }
 
     .canvas-container { flex: 1; position: relative; background: #ffffff; width: 100%; height: 100%; overflow: hidden; }
@@ -474,7 +518,7 @@
       touch-action: none;
       cursor: none;
     }
-    .page-indicator { background: #444; color: #ffc107; padding: 6px 2px; border-radius: 6px; font-size: 11px; font-weight: bold; text-align: center; width: 56px; flex-shrink: 0; }
+    .page-indicator { background: #444; color: #ffc107; padding: 4px 2px; border-radius: 5px; font-size: 10px; font-weight: bold; text-align: center; width: 46px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -551,6 +595,13 @@
       <button id="menuPaste">📥 貼上</button>
     </div>
   </div>
+
+  <button id="toolbarSideToggle" type="button" title="將工具列移到左側" aria-label="將工具列移到左側" aria-pressed="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="15" y="4" width="5" height="16" rx="1"></rect>
+      <path d="M12 8l-4 4 4 4M8 12h9"></path>
+    </svg>
+  </button>
 
   <div id="windowPicker" role="dialog" aria-modal="true" aria-labelledby="windowPickerTitle">
     <div id="windowPickerPanel">
@@ -810,9 +861,11 @@
     const minimizeBtn = document.getElementById('minimizeBtn');
     const miniScreenshotBtn = document.getElementById('miniScreenshotBtn');
     const miniCanvasBtn = document.getElementById('miniCanvasBtn');
+    const toolbarSideToggle = document.getElementById('toolbarSideToggle');
     const canvasContainer = document.getElementById('canvasContainer');
     const canvas = document.getElementById('paintCanvas');
     const ctx = canvas.getContext('2d');
+
     const zoomBadgeWrapper = document.getElementById('zoomBadgeWrapper');
     const zoomBadge = document.getElementById('zoomBadge');
     const zoomBadgeText = document.getElementById('zoomBadgeText');
@@ -897,15 +950,26 @@
       });
     }
 
+    toolbarSideToggle.addEventListener('click', () => {
+      const toolbarOnLeft = document.body.classList.toggle('toolbar-left');
+      const label = toolbarOnLeft ? '將工具列移到右側' : '將工具列移到左側';
+      toolbarSideToggle.title = label;
+      toolbarSideToggle.setAttribute('aria-label', label);
+      toolbarSideToggle.setAttribute('aria-pressed', String(toolbarOnLeft));
+      initCanvas();
+    });
+
     minimizeBtn.addEventListener('click', async () => {
       try {
         await progressReady;
         await saveProgress();
         document.body.classList.add('compact');
+        stopSparkleAnimation();
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await window.whiteboardApp.minimizeToCorner();
       } catch (error) {
         document.body.classList.remove('compact');
+        startSparkleAnimation();
         console.error('無法最小化白板。', error);
         alert(error.message || '無法最小化白板。');
       }
@@ -916,6 +980,7 @@
         await window.whiteboardApp.restoreCanvas();
         document.body.classList.remove('compact');
         initCanvas();
+        startSparkleAnimation();
       } catch (error) {
         console.error('無法開啟畫布。', error);
         alert(error.message || '無法開啟畫布。');
@@ -931,6 +996,7 @@
         await window.whiteboardApp.restoreCanvas();
         document.body.classList.remove('compact');
         initCanvas();
+        startSparkleAnimation();
         restored = true;
         await placeScreenshotOnNextPage(screenshot, 1, 1, true);
       } catch (error) {
@@ -940,6 +1006,7 @@
             await window.whiteboardApp.restoreCanvas();
             document.body.classList.remove('compact');
             initCanvas();
+            startSparkleAnimation();
           } catch (restoreError) {
             console.error('無法恢復白板視窗。', restoreError);
           }
@@ -1991,6 +2058,10 @@
     function startSparkleAnimation() {
       if (sparkleAnimFrame) cancelAnimationFrame(sparkleAnimFrame);
       function loop() {
+        if (document.body.classList.contains('compact')) {
+          sparkleAnimFrame = null;
+          return;
+        }
         const hasSparkle = paths.some(p => p.type === 'sparkle');
         if (hasSparkle && !interactionState) {
           scheduleRedraw();
@@ -1998,6 +2069,11 @@
         sparkleAnimFrame = requestAnimationFrame(loop);
       }
       loop();
+    }
+
+    function stopSparkleAnimation() {
+      if (sparkleAnimFrame) cancelAnimationFrame(sparkleAnimFrame);
+      sparkleAnimFrame = null;
     }
 
     function renderPageContent(targetCtx) {
