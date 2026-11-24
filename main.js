@@ -174,7 +174,7 @@ ipcMain.handle('app:restore-canvas', event => {
   const { bounds } = screen.getDisplayMatching(win.getBounds());
   win.setAlwaysOnTop(false);
   win.setFocusable(true);
-  win.setResizable(true);
+  win.setResizable(false);
   win.setMinimumSize(720, 480);
   win.setBounds(bounds);
   win.setKiosk(true);
@@ -187,10 +187,11 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    resizable: false,
     minWidth: 720,
     minHeight: 480,
     title: '數位白板',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#00000000',
     frame: false,
     transparent: true,
     fullscreen: true,
