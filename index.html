@@ -2172,97 +2172,109 @@
           ctx.restore();
         } else if (groupBounds && (selectedPaths.length > 0 || selectedImages.length > 0 || selectedTexts.length > 0)) {
           const invS = 1 / viewScale;
+          const isRotating = interactionState === 'rotating';
           ctx.save();
           ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2 * invS; ctx.setLineDash([4 * invS, 4 * invS]);
-          ctx.strokeRect(groupBounds.x, groupBounds.y, groupBounds.w, groupBounds.h);
+          if (!isRotating) {
+            ctx.strokeRect(groupBounds.x, groupBounds.y, groupBounds.w, groupBounds.h);
+          }
 
           const handleSize = 10 * invS;
           ctx.setLineDash([]);
 
           const rotationHandle = getRotationHandlePosition();
           const rotX = rotationHandle.x, rotY = rotationHandle.y;
-          ctx.beginPath(); ctx.moveTo(rotX, groupBounds.y); ctx.lineTo(rotX, rotY);
-          ctx.strokeStyle = '#007bff'; ctx.lineWidth = 1.5 * invS; ctx.stroke();
-          ctx.fillStyle = '#28a745'; ctx.beginPath(); ctx.arc(rotX, rotY, 7 * invS, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          if (!isRotating) {
+            ctx.beginPath(); ctx.moveTo(rotX, groupBounds.y); ctx.lineTo(rotX, rotY);
+            ctx.strokeStyle = '#007bff'; ctx.lineWidth = 1.5 * invS; ctx.stroke();
+          }
+          ctx.fillStyle = '#28a745'; ctx.beginPath(); ctx.arc(rotX, rotY, 7 * invS, 0, Math.PI * 2); ctx.fill();
+          if (!isRotating) ctx.stroke();
 
-          const nX = groupBounds.x + groupBounds.w / 2, nY = groupBounds.y;
-          const sX = groupBounds.x + groupBounds.w / 2, sY = groupBounds.y + groupBounds.h;
-          ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2 * invS;
-          ctx.fillRect(nX - 7 * invS, nY - 3.5 * invS, 14 * invS, 7 * invS);
-          ctx.strokeRect(nX - 7 * invS, nY - 3.5 * invS, 14 * invS, 7 * invS);
-          ctx.fillRect(sX - 7 * invS, sY - 3.5 * invS, 14 * invS, 7 * invS);
-          ctx.strokeRect(sX - 7 * invS, sY - 3.5 * invS, 14 * invS, 7 * invS);
+          if (!isRotating) {
+            const nX = groupBounds.x + groupBounds.w / 2, nY = groupBounds.y;
+            const sX = groupBounds.x + groupBounds.w / 2, sY = groupBounds.y + groupBounds.h;
+            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2 * invS;
+            ctx.fillRect(nX - 7 * invS, nY - 3.5 * invS, 14 * invS, 7 * invS);
+            ctx.strokeRect(nX - 7 * invS, nY - 3.5 * invS, 14 * invS, 7 * invS);
+            ctx.fillRect(sX - 7 * invS, sY - 3.5 * invS, 14 * invS, 7 * invS);
+            ctx.strokeRect(sX - 7 * invS, sY - 3.5 * invS, 14 * invS, 7 * invS);
 
-          const wX = groupBounds.x, wY = groupBounds.y + groupBounds.h / 2;
-          const eX = groupBounds.x + groupBounds.w, eY = groupBounds.y + groupBounds.h / 2;
-          ctx.fillRect(wX - 3.5 * invS, wY - 7 * invS, 7 * invS, 14 * invS);
-          ctx.strokeRect(wX - 3.5 * invS, wY - 7 * invS, 7 * invS, 14 * invS);
-          ctx.fillRect(eX - 3.5 * invS, eY - 7 * invS, 7 * invS, 14 * invS);
-          ctx.strokeRect(eX - 3.5 * invS, eY - 7 * invS, 7 * invS, 14 * invS);
+            const wX = groupBounds.x, wY = groupBounds.y + groupBounds.h / 2;
+            const eX = groupBounds.x + groupBounds.w, eY = groupBounds.y + groupBounds.h / 2;
+            ctx.fillRect(wX - 3.5 * invS, wY - 7 * invS, 7 * invS, 14 * invS);
+            ctx.strokeRect(wX - 3.5 * invS, wY - 7 * invS, 7 * invS, 14 * invS);
+            ctx.fillRect(eX - 3.5 * invS, eY - 7 * invS, 7 * invS, 14 * invS);
+            ctx.strokeRect(eX - 3.5 * invS, eY - 7 * invS, 7 * invS, 14 * invS);
 
-          const swX = groupBounds.x, swY = groupBounds.y + groupBounds.h;
-          ctx.fillStyle = '#ffc107'; ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2 * invS;
-          ctx.fillRect(swX - handleSize/2, swY - handleSize/2, handleSize, handleSize);
-          ctx.strokeRect(swX - handleSize/2, swY - handleSize/2, handleSize, handleSize);
+            const swX = groupBounds.x, swY = groupBounds.y + groupBounds.h;
+            ctx.fillStyle = '#ffc107'; ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2 * invS;
+            ctx.fillRect(swX - handleSize/2, swY - handleSize/2, handleSize, handleSize);
+            ctx.strokeRect(swX - handleSize/2, swY - handleSize/2, handleSize, handleSize);
+          }
 
           ctx.restore();
 
-          const screenRightX = (groupBounds.x + groupBounds.w) * viewScale + viewOffsetX;
-          const screenLeftX = groupBounds.x * viewScale + viewOffsetX;
-          const screenTopY = groupBounds.y * viewScale + viewOffsetY;
-          const screenBottomY = (groupBounds.y + groupBounds.h) * viewScale + viewOffsetY;
-          topRightMenuWrapper.style.display = 'block';
-          const toolbarRect = mainToolbar.getBoundingClientRect();
-          const containerRect = canvasContainer.getBoundingClientRect();
-          const toolbarLeft = toolbarRect.left - containerRect.left;
-          const toolbarRight = toolbarRect.right - containerRect.left;
-          const toolbarTop = toolbarRect.top - containerRect.top;
-          const toolbarBottom = toolbarRect.bottom - containerRect.top;
-          const rotationScreenX = rotationHandle.x * viewScale + viewOffsetX;
-          const rotationScreenY = rotationHandle.y * viewScale + viewOffsetY;
-          const leftMenuX = screenLeftX - 60;
-          const rightMenuX = screenRightX + 26;
-          const sideMenuY = screenTopY - 17;
-          const bottomMenuY = screenBottomY + 8;
-          const menuCandidates = [
-            { left: screenRightX - 17, top: screenTopY - 38 },
-            ...(document.body.classList.contains('toolbar-left')
-              ? [
-                { left: rightMenuX, top: sideMenuY },
-                { left: leftMenuX, top: sideMenuY }
-              ]
-              : [
-                { left: leftMenuX, top: sideMenuY },
-                { left: rightMenuX, top: sideMenuY }
-              ]),
-            { left: leftMenuX, top: bottomMenuY },
-            { left: rightMenuX, top: bottomMenuY }
-          ];
-          let menuPosition = null;
-          for (const candidate of menuCandidates) {
-            const left = Math.min(width - 42, Math.max(8, candidate.left));
-            const top = Math.min(height - 42, Math.max(8, candidate.top));
-            const overlapsToolbar = left < toolbarRight && left + 34 > toolbarLeft &&
-              top < toolbarBottom && top + 34 > toolbarTop;
-            const nearestX = Math.max(left, Math.min(rotationScreenX, left + 34));
-            const nearestY = Math.max(top, Math.min(rotationScreenY, top + 34));
-            const overlapsRotationHandle = Math.hypot(
-              rotationScreenX - nearestX,
-              rotationScreenY - nearestY
-            ) < 18;
-            if (!overlapsToolbar && !overlapsRotationHandle) {
-              menuPosition = { left, top };
-              break;
+          if (isRotating) {
+            topRightMenuWrapper.style.display = 'none';
+          } else {
+            const screenRightX = (groupBounds.x + groupBounds.w) * viewScale + viewOffsetX;
+            const screenLeftX = groupBounds.x * viewScale + viewOffsetX;
+            const screenTopY = groupBounds.y * viewScale + viewOffsetY;
+            const screenBottomY = (groupBounds.y + groupBounds.h) * viewScale + viewOffsetY;
+            topRightMenuWrapper.style.display = 'block';
+            const toolbarRect = mainToolbar.getBoundingClientRect();
+            const containerRect = canvasContainer.getBoundingClientRect();
+            const toolbarLeft = toolbarRect.left - containerRect.left;
+            const toolbarRight = toolbarRect.right - containerRect.left;
+            const toolbarTop = toolbarRect.top - containerRect.top;
+            const toolbarBottom = toolbarRect.bottom - containerRect.top;
+            const rotationScreenX = rotationHandle.x * viewScale + viewOffsetX;
+            const rotationScreenY = rotationHandle.y * viewScale + viewOffsetY;
+            const leftMenuX = screenLeftX - 60;
+            const rightMenuX = screenRightX + 26;
+            const sideMenuY = screenTopY - 17;
+            const bottomMenuY = screenBottomY + 8;
+            const menuCandidates = [
+              { left: screenRightX - 17, top: screenTopY - 38 },
+              ...(document.body.classList.contains('toolbar-left')
+                ? [
+                  { left: rightMenuX, top: sideMenuY },
+                  { left: leftMenuX, top: sideMenuY }
+                ]
+                : [
+                  { left: leftMenuX, top: sideMenuY },
+                  { left: rightMenuX, top: sideMenuY }
+                ]),
+              { left: leftMenuX, top: bottomMenuY },
+              { left: rightMenuX, top: bottomMenuY }
+            ];
+            let menuPosition = null;
+            for (const candidate of menuCandidates) {
+              const left = Math.min(width - 42, Math.max(8, candidate.left));
+              const top = Math.min(height - 42, Math.max(8, candidate.top));
+              const overlapsToolbar = left < toolbarRight && left + 34 > toolbarLeft &&
+                top < toolbarBottom && top + 34 > toolbarTop;
+              const nearestX = Math.max(left, Math.min(rotationScreenX, left + 34));
+              const nearestY = Math.max(top, Math.min(rotationScreenY, top + 34));
+              const overlapsRotationHandle = Math.hypot(
+                rotationScreenX - nearestX,
+                rotationScreenY - nearestY
+              ) < 18;
+              if (!overlapsToolbar && !overlapsRotationHandle) {
+                menuPosition = { left, top };
+                break;
+              }
             }
+            if (!menuPosition) {
+              menuPosition = {
+                left: Math.min(width - 42, Math.max(8, screenRightX - 17)),
+                top: Math.min(height - 42, Math.max(8, screenTopY - 38))
+              };
+            }
+            topRightMenuWrapper.style.left = menuPosition.left + 'px';
+            topRightMenuWrapper.style.top = menuPosition.top + 'px';
           }
-          if (!menuPosition) {
-            menuPosition = {
-              left: Math.min(width - 42, Math.max(8, screenRightX - 17)),
-              top: Math.min(height - 42, Math.max(8, screenTopY - 38))
-            };
-          }
-          topRightMenuWrapper.style.left = menuPosition.left + 'px';
-          topRightMenuWrapper.style.top = menuPosition.top + 'px';
         } else {
           topRightMenuWrapper.style.display = 'none';
           objectMenu.classList.remove('show'); opacitySubPanel.classList.remove('show');
