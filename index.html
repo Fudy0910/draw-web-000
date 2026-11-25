@@ -584,7 +584,7 @@
     <div id="dropOverlay">
       <div class="drop-card">
         <h3>📂 放開以開啟檔案</h3>
-        <p>支援 PDF 文件、JPG、PNG、WEBP、GIF 等圖片格式</p>
+        <p>支援可續畫白板檔（.dwb）、PDF、JPG、PNG、WEBP、GIF 等格式</p>
       </div>
     </div>
 
@@ -642,7 +642,7 @@
 
   <canvas id="snippingLayer"></canvas>
 
-  <input type="file" id="filePickerInput" accept=".pdf,application/pdf,image/*" multiple style="display:none;">
+  <input type="file" id="filePickerInput" accept=".dwb,application/vnd.fudy.whiteboard+json,.pdf,application/pdf,image/*" multiple style="display:none;">
 
   <div class="toolbar" id="mainToolbar">
     <button id="minimizeBtn" class="minimize-btn" title="最小化至螢幕右下角" hidden>
@@ -826,7 +826,7 @@
       </svg>
     </button>
 
-    <button id="saveBtn" class="success">
+    <button id="saveBtn" class="success" title="下載可續畫白板檔（.dwb）" aria-label="下載可續畫白板檔">
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
@@ -1590,8 +1590,7 @@
       }, delay);
     }
 
-    function saveProgress() {
-      clearTimeout(saveDebounceTimer);
+    function createProgressPayload() {
       syncPageViewState();
       const serializedPages = pages.map(page => ({
         paths: page.paths,
@@ -1612,11 +1611,16 @@
         }))
       }));
 
-      const payload = {
+      return {
         version: 2,
         currentPageIndex: currentPageIndex,
         pages: serializedPages
       };
+    }
+
+    function saveProgress() {
+      clearTimeout(saveDebounceTimer);
+      const payload = createProgressPayload();
 
       const persist = async () => {
         try {
@@ -1663,6 +1667,10 @@
         } catch (e) {}
       }
 
+      restoreProgressPayload(rawSaved);
+    }
+
+    function restoreProgressPayload(rawSaved) {
       let parsedPages = null;
       let savedPageIdx = 0;
 
@@ -1707,6 +1715,10 @@
         });
 
         const targetIdx = Math.min(Math.max(0, savedPageIdx), pages.length - 1);
+        currentPageIndex = targetIdx;
+        viewScale = pages[targetIdx].viewScale !== undefined ? pages[targetIdx].viewScale : 1.0;
+        viewOffsetX = pages[targetIdx].viewOffsetX !== undefined ? pages[targetIdx].viewOffsetX : 0;
+        viewOffsetY = pages[targetIdx].viewOffsetY !== undefined ? pages[targetIdx].viewOffsetY : 0;
 
         parsedPages.forEach((p, pIdx) => {
           if (p.images && p.images.length > 0) {
@@ -1998,6 +2010,56 @@
       }
     }
 
+    function isValidWhiteboardPayload(payload) {
+      const isFiniteNumber = value => typeof value === 'number' && Number.isFinite(value);
+      if (!payload || payload.format !== 'fudy-whiteboard' || payload.formatVersion !== 1 ||
+          !Array.isArray(payload.pages) || payload.pages.length === 0 ||
+          !Number.isInteger(payload.currentPageIndex) ||
+          payload.currentPageIndex < 0 || payload.currentPageIndex >= payload.pages.length) {
+        return false;
+      }
+
+      return payload.pages.every(page =>
+        page &&
+        Array.isArray(page.paths) &&
+        Array.isArray(page.images) &&
+        Array.isArray(page.texts) &&
+        page.paths.every(pathObj =>
+          pathObj &&
+          Array.isArray(pathObj.points) &&
+          isFiniteNumber(pathObj.size) &&
+          pathObj.points.every(point => point && isFiniteNumber(point.x) && isFiniteNumber(point.y))
+        ) &&
+        page.images.every(image =>
+          image &&
+          typeof image.src === 'string' &&
+          /^data:image\//i.test(image.src) &&
+          ['x', 'y', 'w', 'h'].every(key => isFiniteNumber(image[key]))
+        ) &&
+        page.texts.every(text =>
+          text &&
+          typeof text.text === 'string' &&
+          ['x', 'y', 'w', 'h'].every(key => isFiniteNumber(text[key]))
+        )
+      );
+    }
+
+    async function importWhiteboardFile(file) {
+      showLoadingToast(`正在載入白板：${file.name}...`);
+      try {
+        const payload = JSON.parse(await file.text());
+        if (!isValidWhiteboardPayload(payload)) {
+          throw new Error('檔案格式錯誤或版本不支援。');
+        }
+        restoreProgressPayload(payload);
+      } catch (error) {
+        console.error('白板檔案載入失敗。', error);
+        alert(`無法開啟白板檔案「${file.name}」：${error.message || '檔案格式錯誤。'}`);
+      } finally {
+        hideLoadingToast();
+      }
+    }
+
     async function handleIncomingFiles(fileList, dropPos = null, centerOnPage = false) {
       const files = Array.from(fileList || []);
       if (files.length === 0) return;
@@ -2007,10 +2069,14 @@
       let hasUnsupported = false;
 
       for (const file of files) {
+        const isWhiteboard = /\.dwb$/i.test(file.name) ||
+          file.type === 'application/vnd.fudy.whiteboard+json';
         const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
         const isImg = (file.type && file.type.startsWith('image/')) || imageExtRegex.test(file.name);
 
-        if (isPdf) {
+        if (isWhiteboard) {
+          await importWhiteboardFile(file);
+        } else if (isPdf) {
           await importPdfFile(file);
         } else if (isImg) {
           showLoadingToast(`正在載入圖片：${file.name}...`);
@@ -4668,90 +4734,35 @@
       redraw(); saveProgress();
     });
 
-    function computeInfiniteContentBounds() {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-      function expandRotatedRect(x, y, w, h, rot, pad = 0) {
-        const cx = x + w / 2;
-        const cy = y + h / 2;
-        const cos = rot ? Math.cos(rot) : 1;
-        const sin = rot ? Math.sin(rot) : 0;
-        const corners = [
-          { x: x, y: y },
-          { x: x + w, y: y },
-          { x: x + w, y: y + h },
-          { x: x, y: y + h }
-        ];
-        corners.forEach(c => {
-          const rx = cx + (c.x - cx) * cos - (c.y - cy) * sin;
-          const ry = cy + (c.x - cx) * sin + (c.y - cy) * cos;
-          if (rx - pad < minX) minX = rx - pad;
-          if (ry - pad < minY) minY = ry - pad;
-          if (rx + pad > maxX) maxX = rx + pad;
-          if (ry + pad > maxY) maxY = ry + pad;
-        });
-      }
-
-      images.forEach(imgObj => {
-        expandRotatedRect(imgObj.x, imgObj.y, imgObj.w, imgObj.h, imgObj.rotation || 0, 0);
-      });
-
-      texts.forEach(tObj => {
-        measureTextObject(tObj);
-        expandRotatedRect(tObj.x, tObj.y, tObj.w, tObj.h, tObj.rotation || 0, 2);
-      });
-
-      paths.forEach(p => {
-        if (!p.points || p.points.length === 0) return;
-        let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
-        p.points.forEach(pt => {
-          if (pt.x < pMinX) pMinX = pt.x;
-          if (pt.y < pMinY) pMinY = pt.y;
-          if (pt.x > pMaxX) pMaxX = pt.x;
-          if (pt.y > pMaxY) pMaxY = pt.y;
-        });
-        const pad = p.type === 'highlighter' ? p.size * 1.5 : p.size;
-        expandRotatedRect(pMinX, pMinY, pMaxX - pMinX, pMaxY - pMinY, p.rotation || 0, pad);
-      });
-
-      if (minX === Infinity) return null;
-      const margin = 40;
-      return {
-        x: Math.floor(minX - margin),
-        y: Math.floor(minY - margin),
-        w: Math.max(100, Math.ceil(maxX - minX + margin * 2)),
-        h: Math.max(100, Math.ceil(maxY - minY + margin * 2))
-      };
-    }
-
     function saveDrawingFile() {
-      if (paths.length === 0 && images.length === 0 && texts.length === 0) return;
-      let fileName = prompt(`請輸入「第 ${currentPageIndex + 1} 頁」的檔案名稱：`, `數位白板_第${currentPageIndex + 1}頁`);
-      if (fileName !== null) {
-        fileName = fileName.trim() === "" ? `drawing_page_${currentPageIndex + 1}` : fileName.trim();
-        const bounds = computeInfiniteContentBounds();
-        if (!bounds) return;
+      try {
+        const payload = createProgressPayload();
+        payload.format = 'fudy-whiteboard';
+        payload.formatVersion = 1;
+        const content = JSON.stringify(payload);
 
-        const dpr = window.devicePixelRatio || 1;
-        const exportScale = Math.min(dpr, 4096 / bounds.w, 4096 / bounds.h);
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = Math.max(1, Math.round(bounds.w * exportScale));
-        exportCanvas.height = Math.max(1, Math.round(bounds.h * exportScale));
-        const exportCtx = exportCanvas.getContext('2d');
+        if (window.whiteboardApp && typeof window.whiteboardApp.saveWhiteboardFile === 'function') {
+          window.whiteboardApp.saveWhiteboardFile(content).catch(error => {
+            console.error('白板檔案儲存失敗。', error);
+            alert(`無法儲存白板檔案：${error.message || '未知錯誤。'}`);
+          });
+          return;
+        }
 
-        exportCtx.fillStyle = '#ffffff';
-        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-
-        exportCtx.scale(exportScale, exportScale);
-        exportCtx.translate(-bounds.x, -bounds.y);
-        renderPageContent(exportCtx);
-
+        const file = new Blob([content], {
+          type: 'application/vnd.fudy.whiteboard+json'
+        });
+        const url = URL.createObjectURL(file);
         const link = document.createElement('a');
-        link.download = fileName + '.png';
-        link.href = exportCanvas.toDataURL('image/png');
+        link.download = '數位白板.dwb';
+        link.href = url;
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      } catch (error) {
+        console.error('白板檔案下載失敗。', error);
+        alert(`無法下載白板檔案：${error.message || '未知錯誤。'}`);
       }
     }
 
@@ -4770,7 +4781,14 @@
     });
 
     initCanvas();
+    saveBtn.disabled = true;
     progressReady = loadProgress();
+    progressReady.then(() => {
+      saveBtn.disabled = false;
+    }).catch(error => {
+      console.error('白板進度載入失敗。', error);
+      alert('白板進度載入失敗，請重新整理後再試。');
+    });
     startSparkleAnimation();
   </script>
 </body>

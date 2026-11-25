@@ -1,5 +1,6 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell } = require('electron');
 const path = require('path');
+const fs = require('fs/promises');
 
 let mainWindow = null;
 
@@ -134,6 +135,30 @@ ipcMain.handle('capture:window', async (_event, sourceId) => {
     throw new Error('無法擷取所選視窗，請重新選取。');
   }
   return source.thumbnail.toDataURL();
+});
+
+ipcMain.handle('file:save-whiteboard', async (event, content) => {
+  if (typeof content !== 'string') {
+    throw new Error('無效的白板檔案內容。');
+  }
+
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    throw new Error('白板視窗已關閉，無法儲存。');
+  }
+
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: '儲存可續畫白板檔',
+    defaultPath: path.join(app.getPath('downloads'), '數位白板.dwb'),
+    filters: [{ name: '可續畫白板檔', extensions: ['dwb'] }]
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  const outputPath = filePath.toLowerCase().endsWith('.dwb')
+    ? filePath
+    : `${filePath}.dwb`;
+  await fs.writeFile(outputPath, content, 'utf8');
+  return { canceled: false, filePath: outputPath };
 });
 
 ipcMain.handle('app:close', () => {

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('whiteboardApp', {
   close: () => ipcRenderer.invoke('app:close'),
   minimizeToCorner: () => ipcRenderer.invoke('app:minimize-to-corner'),
   restoreCanvas: () => ipcRenderer.invoke('app:restore-canvas'),
+  saveWhiteboardFile: content => ipcRenderer.invoke('file:save-whiteboard', content),
   onMiniBackground: callback => {
     const listener = (_event, isDark) => callback(isDark);
     ipcRenderer.on('mini:background', listener);
