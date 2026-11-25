@@ -864,6 +864,7 @@
     const toolbarSideToggle = document.getElementById('toolbarSideToggle');
     const canvasContainer = document.getElementById('canvasContainer');
     const canvas = document.getElementById('paintCanvas');
+    const mainToolbar = document.getElementById('mainToolbar');
     const ctx = canvas.getContext('2d');
 
     const zoomBadgeWrapper = document.getElementById('zoomBadgeWrapper');
@@ -1091,6 +1092,7 @@
     let selectedImages = [];
     let interactionState = null;
     let dragStartX = 0, dragStartY = 0;
+    let rotationStartAngle = 0;
     let groupBounds = null;
     let origGroupBounds = null;
     let clipboard = { paths: [], images: [], texts: [] };
@@ -2177,7 +2179,8 @@
           const handleSize = 10 * invS;
           ctx.setLineDash([]);
 
-          const rotX = groupBounds.x + groupBounds.w / 2, rotY = groupBounds.y - 26 * invS;
+          const rotationHandle = getRotationHandlePosition();
+          const rotX = rotationHandle.x, rotY = rotationHandle.y;
           ctx.beginPath(); ctx.moveTo(rotX, groupBounds.y); ctx.lineTo(rotX, rotY);
           ctx.strokeStyle = '#007bff'; ctx.lineWidth = 1.5 * invS; ctx.stroke();
           ctx.fillStyle = '#28a745'; ctx.beginPath(); ctx.arc(rotX, rotY, 7 * invS, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -2205,10 +2208,61 @@
           ctx.restore();
 
           const screenRightX = (groupBounds.x + groupBounds.w) * viewScale + viewOffsetX;
+          const screenLeftX = groupBounds.x * viewScale + viewOffsetX;
           const screenTopY = groupBounds.y * viewScale + viewOffsetY;
+          const screenBottomY = (groupBounds.y + groupBounds.h) * viewScale + viewOffsetY;
           topRightMenuWrapper.style.display = 'block';
-          topRightMenuWrapper.style.left = Math.min(width - 44, Math.max(8, screenRightX - 17)) + 'px';
-          topRightMenuWrapper.style.top = Math.min(height - 44, Math.max(8, screenTopY - 38)) + 'px';
+          const toolbarRect = mainToolbar.getBoundingClientRect();
+          const containerRect = canvasContainer.getBoundingClientRect();
+          const toolbarLeft = toolbarRect.left - containerRect.left;
+          const toolbarRight = toolbarRect.right - containerRect.left;
+          const toolbarTop = toolbarRect.top - containerRect.top;
+          const toolbarBottom = toolbarRect.bottom - containerRect.top;
+          const rotationScreenX = rotationHandle.x * viewScale + viewOffsetX;
+          const rotationScreenY = rotationHandle.y * viewScale + viewOffsetY;
+          const leftMenuX = screenLeftX - 60;
+          const rightMenuX = screenRightX + 26;
+          const sideMenuY = screenTopY - 17;
+          const bottomMenuY = screenBottomY + 8;
+          const menuCandidates = [
+            { left: screenRightX - 17, top: screenTopY - 38 },
+            ...(document.body.classList.contains('toolbar-left')
+              ? [
+                { left: rightMenuX, top: sideMenuY },
+                { left: leftMenuX, top: sideMenuY }
+              ]
+              : [
+                { left: leftMenuX, top: sideMenuY },
+                { left: rightMenuX, top: sideMenuY }
+              ]),
+            { left: leftMenuX, top: bottomMenuY },
+            { left: rightMenuX, top: bottomMenuY }
+          ];
+          let menuPosition = null;
+          for (const candidate of menuCandidates) {
+            const left = Math.min(width - 42, Math.max(8, candidate.left));
+            const top = Math.min(height - 42, Math.max(8, candidate.top));
+            const overlapsToolbar = left < toolbarRight && left + 34 > toolbarLeft &&
+              top < toolbarBottom && top + 34 > toolbarTop;
+            const nearestX = Math.max(left, Math.min(rotationScreenX, left + 34));
+            const nearestY = Math.max(top, Math.min(rotationScreenY, top + 34));
+            const overlapsRotationHandle = Math.hypot(
+              rotationScreenX - nearestX,
+              rotationScreenY - nearestY
+            ) < 18;
+            if (!overlapsToolbar && !overlapsRotationHandle) {
+              menuPosition = { left, top };
+              break;
+            }
+          }
+          if (!menuPosition) {
+            menuPosition = {
+              left: Math.min(width - 42, Math.max(8, screenRightX - 17)),
+              top: Math.min(height - 42, Math.max(8, screenTopY - 38))
+            };
+          }
+          topRightMenuWrapper.style.left = menuPosition.left + 'px';
+          topRightMenuWrapper.style.top = menuPosition.top + 'px';
         } else {
           topRightMenuWrapper.style.display = 'none';
           objectMenu.classList.remove('show'); opacitySubPanel.classList.remove('show');
@@ -3487,10 +3541,31 @@
       return null;
     }
 
+    function getRotationHandlePosition() {
+      const invS = 1 / viewScale;
+      const centerX = groupBounds.x + groupBounds.w / 2;
+      const toolbarRect = mainToolbar.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const toolbarLeft = toolbarRect.left - canvasRect.left;
+      const toolbarRight = toolbarRect.right - canvasRect.left;
+      const screenX = centerX * viewScale + viewOffsetX;
+      let x = centerX;
+
+      if (screenX >= toolbarLeft - 18 && screenX <= toolbarRight + 18) {
+        const handleScreenX = document.body.classList.contains('toolbar-left')
+          ? toolbarRight + 24
+          : toolbarLeft - 24;
+        x = (handleScreenX - viewOffsetX) * invS;
+      }
+
+      return { x, y: groupBounds.y - 26 * invS };
+    }
+
     function hitTestHandle(pos) {
       if (!groupBounds) return null;
       const invS = 1 / viewScale;
-      const rotX = groupBounds.x + groupBounds.w / 2, rotY = groupBounds.y - 26 * invS;
+      const rotationHandle = getRotationHandlePosition();
+      const rotX = rotationHandle.x, rotY = rotationHandle.y;
       if (Math.hypot(pos.x - rotX, pos.y - rotY) < 18 * invS) return 'rotating';
 
       const swX = groupBounds.x, swY = groupBounds.y + groupBounds.h;
@@ -3561,6 +3636,11 @@
             pendingHistorySnapshot = capturePageState();
             interactionState = handle;
             dragStartX = pos.x; dragStartY = pos.y;
+            if (handle === 'rotating') {
+              const centerX = groupBounds.x + groupBounds.w / 2;
+              const centerY = groupBounds.y + groupBounds.h / 2;
+              rotationStartAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+            }
             prepareTransformBackup();
             if (handle === 'rotating') canvas.style.cursor = 'grabbing';
             else if (handle === 'resizing-sw') canvas.style.cursor = 'nesw-resize';
@@ -3653,20 +3733,19 @@
           const origH = origGroupBounds.h;
           const newW = Math.max(minWorldSize, origRight - pos.x);
           const newH = Math.max(minWorldSize, pos.y - origTop);
-
-          let avgScale = 1;
-          if (origW < 0.05 && origH < 0.05) avgScale = 1;
-          else if (origW < 0.05) avgScale = newH / origH;
-          else if (origH < 0.05) avgScale = newW / origW;
-          else avgScale = ((newW / origW) + (newH / origH)) / 2;
+          const scaleX = origW < 0.05 ? 1 : newW / origW;
+          const scaleY = origH < 0.05 ? 1 : newH / origH;
+          const avgScale = (scaleX + scaleY) / 2;
 
           selectedImages.forEach(img => {
+            const rot = img.origRotation || 0;
+            const cos = Math.cos(rot), sin = Math.sin(rot);
             const origCx = img.origX + img.origW / 2;
             const origCy = img.origY + img.origH / 2;
-            const newCx = origRight + (origCx - origRight) * avgScale;
-            const newCy = origTop + (origCy - origTop) * avgScale;
-            img.w = Math.max(0.1, img.origW * avgScale);
-            img.h = Math.max(0.1, img.origH * avgScale);
+            const newCx = origRight + (origCx - origRight) * scaleX;
+            const newCy = origTop + (origCy - origTop) * scaleY;
+            img.w = Math.max(0.1, img.origW * Math.hypot(scaleX * cos, scaleY * sin));
+            img.h = Math.max(0.1, img.origH * Math.hypot(scaleX * sin, scaleY * cos));
             img.x = newCx - img.w / 2;
             img.y = newCy - img.h / 2;
           });
@@ -3674,11 +3753,11 @@
             if (p.origSize !== undefined) p.size = Math.max(0.1, p.origSize * avgScale);
             p.points.forEach((pt, idx) => {
               const origPt = p.origPoints[idx];
-              pt.x = origRight + (origPt.x - origRight) * avgScale;
-              pt.y = origTop + (origPt.y - origTop) * avgScale;
+              pt.x = origRight + (origPt.x - origRight) * scaleX;
+              pt.y = origTop + (origPt.y - origTop) * scaleY;
             });
           });
-          resizeSelectedTexts(avgScale, avgScale, origRight, origTop, avgScale);
+          resizeSelectedTexts(scaleX, scaleY, origRight, origTop, avgScale);
           updateGroupBounds();
           pages[currentPageIndex].paths = paths; pages[currentPageIndex].images = images; pages[currentPageIndex].texts = texts;
           scheduleRedraw();
@@ -3801,7 +3880,7 @@
         } else if (interactionState === 'rotating' && origGroupBounds) {
           const cx = origGroupBounds.x + origGroupBounds.w / 2;
           const cy = origGroupBounds.y + origGroupBounds.h / 2;
-          const deltaAngle = Math.atan2(pos.y - cy, pos.x - cx) - (-Math.PI / 2);
+          const deltaAngle = Math.atan2(pos.y - cy, pos.x - cx) - rotationStartAngle;
           const cos = Math.cos(deltaAngle);
           const sin = Math.sin(deltaAngle);
 
