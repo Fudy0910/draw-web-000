@@ -299,17 +299,69 @@
       position: fixed;
       right: calc(66px + env(safe-area-inset-right));
       top: calc(110px + env(safe-area-inset-top));
-      background: #333;
-      border-radius: 10px;
-      box-shadow: -4px 8px 16px rgba(0,0,0,0.35);
-      padding: 8px;
+      background: linear-gradient(155deg, rgba(44, 50, 57, 0.98), rgba(20, 25, 31, 0.98));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      box-shadow: -5px 12px 26px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(14px);
+      padding: 9px;
       z-index: 300;
       flex-direction: column;
-      gap: 6px;
+      gap: 7px;
     }
     .dropdown-container.show-sub .sub-menu { display: flex; }
-    .sub-menu button { background: #444; width: 46px; height: 46px; border-radius: 7px; justify-content: center; padding: 0; font-size: 16px; }
+    .sub-menu button { background: #444; width: 48px; height: 48px; border-radius: 11px; justify-content: center; padding: 0; font-size: 16px; }
     .sub-menu button.active { background: #007bff; }
+    #penSubMenu svg.icon, #eraserSubMenu svg.icon { width: 27px; height: 27px; }
+    #penSubMenu button, #eraserSubMenu button {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: linear-gradient(145deg, #454d56, #323941);
+      box-shadow: 0 3px 7px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.16s ease, box-shadow 0.18s ease;
+    }
+    #penSubMenu button::before, #eraserSubMenu button::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.07), transparent 58%);
+      pointer-events: none;
+    }
+    #penSubMenu button::after, #eraserSubMenu button::after {
+      content: "";
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: transparent;
+      transform: translateX(-50%);
+      transition: background 0.18s ease, box-shadow 0.18s ease;
+    }
+    #penSubMenu button:hover:not(.active), #eraserSubMenu button:hover:not(.active) {
+      background: linear-gradient(145deg, #4d5761, #38414a);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 4px 9px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+    }
+    #penSubMenu button:active, #eraserSubMenu button:active { transform: scale(0.95); }
+    #penSubMenu button.active, #eraserSubMenu button.active {
+      background: linear-gradient(145deg, #246fae, #1d5488);
+      border-color: rgba(190, 215, 235, 0.48);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.17), 0 3px 8px rgba(0, 76, 148, 0.28);
+    }
+    #penSubMenu button.active::after, #eraserSubMenu button.active::after { background: #d7e2ec; box-shadow: 0 0 4px rgba(215, 226, 236, 0.38); }
+    #penSubMenu button:focus-visible, #eraserSubMenu button:focus-visible { outline: 2px solid #7899b8; outline-offset: 2px; }
+    #penSubMenu svg.icon, #eraserSubMenu svg.icon { opacity: 0.9; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.32)); transition: filter 0.18s ease, transform 0.18s ease, opacity 0.18s ease; }
+    #penSubMenu button:hover svg.icon, #eraserSubMenu button:hover svg.icon { opacity: 1; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)); transform: scale(1.08); }
+    @media (prefers-reduced-motion: reduce) {
+      #penSubMenu button, #eraserSubMenu button, #penSubMenu svg.icon, #eraserSubMenu svg.icon { transition: none; }
+    }
 
     .canvas-container { flex: 1; position: relative; background: #ffffff; width: 100%; height: 100%; overflow: hidden; }
     canvas { display: block; width: 100%; height: 100%; touch-action: none; }
@@ -663,23 +715,23 @@
     </button>
 
     <div class="dropdown-container" id="penDropdown">
-      <button id="penMenuBtn" class="active">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+      <button id="penMenuBtn" class="active" title="筆工具" aria-label="筆工具">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 4.5 5 5L8 21l-5 1 1-5L14.5 4.5Z"/><path d="m12.5 6.5 5 5M4 17l3 3M3 22c5-1 8-3 10-6"/></svg>
       </button>
       <div class="sub-menu" id="penSubMenu">
-        <button id="typeNormal" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/></svg></button>
-        <button id="typeSoft"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg></button>
-        <button id="typeHighlighter"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l-6 6v3h3l6-6m-3-3l3-3 6 6-3 3m-6-6l6 6"/></svg></button>
-        <button id="typeSparkle">🌟</button>
+        <button id="typeNormal" class="active" title="一般筆" aria-label="一般筆"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 11-14 4 3L9 21l-5 1 1-4Z"/><path d="m14 6 4 3M5 18l4 3"/></svg></button>
+        <button id="typeSoft" title="軟筆" aria-label="軟筆"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8.1 15 7.5-11a1.8 1.8 0 0 1 2.5-.5l.8.6a1.8 1.8 0 0 1 .5 2.5l-7.5 11L8.1 15Z" fill="#d4ae62"/><path d="m6.1 17.8 2.5-3.6 3.3 2.3-2.5 3.6-3.3-2.3Z" fill="#aab4bf"/><path d="m6.1 17.8 3.3 2.3-2.2 1.6-3 .8-2.3-.4 2.2-1.4 2-2.9Z" fill="#c28568"/><path d="m4.2 20.7 2.1 1m.5-2.7 2 1.3" stroke="#75503f" stroke-width="1"/></svg></button>
+        <button id="typeHighlighter" title="螢光筆" aria-label="螢光筆"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7.6 14.7 9.1-11.4a2.1 2.1 0 0 1 3-.2l1.5 1.5a2.1 2.1 0 0 1-.2 3L9.6 17.2l-2-2.5Z" fill="currentColor"/><path d="m16.1 4.1 4.1 4.1" stroke="#343a40" stroke-width="1.5"/><path d="m7.6 14.7 4 4-4 3.1-4.3-4.3 4.3-2.8Z" fill="#d6bd52"/><path d="m6.2 15.6 4.1 4.1M5.7 18.2l-2.2 2.5m4-1.1-2 2.3M1.5 22h4.2" stroke="#d6bd52" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button id="typeSparkle" title="星光筆" aria-label="星光筆"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.7 6.3L20 10.5l-6.3 2.2L12 19l-1.7-6.3L4 10.5l6.3-2.2L12 2Z" fill="#c9a83b" stroke="#c9a83b"/><path d="m5 3 .7 2.3L8 6l-2.3.7L5 9l-.7-2.3L2 6l2.3-.7L5 3Zm14 12 .6 1.8 1.9.7-1.9.6L19 20l-.6-1.9-1.9-.6 1.9-.7L19 15Z" fill="#c9a83b" stroke="#c9a83b"/></svg></button>
       </div>
     </div>
 
     <div class="dropdown-container" id="eraserDropdown">
-      <button id="eraserMenuBtn"><svg class="icon" viewBox="0 0 24 24"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2l9 9-9 9z"/><path d="M6 11l6 6"/></svg></button>
+      <button id="eraserMenuBtn" title="橡皮擦工具" aria-label="橡皮擦工具"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 3 8 8-9 9H7l-5-5 12-12Z"/><path d="m6 12 6 6M5 21h15M3 8H1M5 4 3.5 2.5"/></svg></button>
       <div class="sub-menu" id="eraserSubMenu">
-        <button id="eraseNormal" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2l9 9-9 9z"/></svg></button>
-        <button id="eraseObject"><svg class="icon" viewBox="0 0 24 24"><polygon points="12 3 22 21 2 21"/></svg></button>
-        <button id="eraseLasso"><svg class="icon" viewBox="0 0 24 24"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2l9 9-9 9z"/><path d="M3 3c6 0 6 6 12 6" stroke-dasharray="3 3"/></svg></button>
+        <button id="eraseNormal" class="active" title="筆刷擦除" aria-label="筆刷擦除"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H7l-4-4c-1-1-1-3 0-4L13 2l9 9-9 9Z" fill="currentColor"/><path d="m6 11 6 6" stroke="#343a40" stroke-width="1.5"/></svg></button>
+        <button id="eraseObject" title="點選物件擦除" aria-label="點選物件擦除"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 21H2L12 3Z" fill="currentColor" /></svg></button>
+        <button id="eraseLasso" title="圈選擦除" aria-label="圈選擦除"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 5.3c-3.2 2.8-3.6 7.7-.7 11 2.9 3.4 8.5 4.1 12.1 1.2 3.7-3 3.7-8.8.4-11.9-2.8-2.6-6.8-3.3-9.8-1.3" stroke-dasharray="2 2"/><path d="m13.3 7.2 4.5 3.7-5.3 6.5-3.2.3-2.1-2 6.1-7.5Z" fill="currentColor"/><path d="m11.5 9.5 4.5 3.7" stroke="#343a40" stroke-width="1.5"/></svg></button>
       </div>
     </div>
 
