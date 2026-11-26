@@ -1140,6 +1140,10 @@
     let textColor = '#000000';
     let textFontSize = 32;
     let activeTouchEraserPos = null;
+    const penPointerSettings = new Map();
+    const penPointerStreams = new Map();
+    let lastActivePenPointerId = null;
+    let firstPenPointerId = null;
 
     let viewScale = 1.0;
     let viewOffsetX = 0;
@@ -3395,11 +3399,44 @@
       }
     }
 
+    function syncPenPointerSettings(pointerId) {
+      let settings = penPointerSettings.get(pointerId);
+      if (!settings) {
+        if (firstPenPointerId === null) firstPenPointerId = pointerId;
+        settings = {
+          color: pointerId === firstPenPointerId ? currentColor : '#000000',
+          size: pointerId === firstPenPointerId ? penSize : 8,
+          penType: pointerId === firstPenPointerId ? penType : 'normal'
+        };
+        penPointerSettings.set(pointerId, settings);
+      }
+
+      lastActivePenPointerId = pointerId;
+      currentColor = settings.color;
+      penSize = settings.size;
+      penType = settings.penType;
+      sizeRange.value = penSize;
+      updateSizeUI(penSize);
+
+      const activeId = 'type' + (
+        penType === 'normal' ? 'Normal' :
+        penType === 'soft' ? 'Soft' :
+        penType === 'highlighter' ? 'Highlighter' : 'Sparkle'
+      );
+      document.querySelectorAll('#penDropdown .sub-menu button').forEach(b => b.classList.remove('active'));
+      const activeButton = document.getElementById(activeId);
+      if (activeButton) activeButton.classList.add('active');
+    }
+
     function setPenType(type) {
       cancelEyedropper();
       const wasEraser = (currentTool === 'eraser');
       currentTool = 'pen'; selectToolBtn.classList.remove('active'); zoomMenuBtn.classList.remove('active'); textToolBtn.classList.remove('active');
       penType = type; penMenuBtn.classList.add('active'); eraserMenuBtn.classList.remove('active');
+      if (lastActivePenPointerId !== null) {
+        const settings = penPointerSettings.get(lastActivePenPointerId);
+        if (settings) settings.penType = type;
+      }
       activeTouchEraserPos = null;
       document.querySelectorAll('#penDropdown .sub-menu button').forEach(b => b.classList.remove('active'));
       const activeId = 'type' + (
@@ -3554,6 +3591,10 @@
     document.querySelectorAll('.color-box').forEach(box => {
       box.addEventListener('click', (e) => {
         e.stopPropagation(); currentColor = box.getAttribute('data-color'); advancedPanel.classList.remove('show');
+        if (lastActivePenPointerId !== null) {
+          const settings = penPointerSettings.get(lastActivePenPointerId);
+          if (settings) settings.color = currentColor;
+        }
         if (currentTool === 'eraser') setPenType(penType);
       });
     });
@@ -3633,6 +3674,10 @@
       } else {
         penSize = parseInt(val);
         sizeLabelTitle.textContent = "筆大小調整";
+        if (lastActivePenPointerId !== null) {
+          const settings = penPointerSettings.get(lastActivePenPointerId);
+          if (settings) settings.size = penSize;
+        }
       }
     }
 
@@ -4298,9 +4343,38 @@
         const color = sampleCanvasColor(e.clientX, e.clientY);
         if (color) {
           currentColor = color;
+          if (lastActivePenPointerId !== null) {
+            const settings = penPointerSettings.get(lastActivePenPointerId);
+            if (settings) settings.color = color;
+          }
           cancelEyedropper();
           if (currentTool === 'eraser') setPenType(penType);
         }
+        return;
+      }
+
+      if (e.pointerType === 'pen' && currentTool === 'pen') {
+        syncPenPointerSettings(e.pointerId);
+        e.preventDefault();
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        const pos = screenToWorld(sp.x, sp.y);
+        const settings = penPointerSettings.get(e.pointerId);
+        const stampedPos = { x: pos.x, y: pos.y, t: performance.now(), p: sp.p };
+        const path = {
+          type: settings ? settings.penType : penType,
+          color: settings ? settings.color : currentColor,
+          size: settings ? settings.size : penSize,
+          points: [stampedPos],
+          opacity: 1.0,
+          rotation: 0,
+          noStartTaper: false,
+          noEndTaper: false
+        };
+        if (penPointerStreams.size === 0) pendingHistorySnapshot = capturePageState();
+        penPointerStreams.set(e.pointerId, path);
+        paths.push(path);
+        pages[currentPageIndex].paths = paths;
+        scheduleRedraw();
         return;
       }
 
@@ -4373,6 +4447,30 @@
         return;
       }
 
+      if (e.pointerType === 'pen' && penPointerStreams.has(e.pointerId)) {
+        const pos = screenToWorld(sp.x, sp.y);
+        const path = penPointerStreams.get(e.pointerId);
+        const lastPt = path.points[path.points.length - 1];
+        if (!lastPt || Math.hypot(pos.x - lastPt.x, pos.y - lastPt.y) >= (1.2 / viewScale)) {
+          const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+          if (coalesced && coalesced.length > 0) {
+            coalesced.forEach(event => {
+              const eventSp = getScreenPos(event);
+              const eventPos = screenToWorld(eventSp.x, eventSp.y);
+              const previous = path.points[path.points.length - 1];
+              if (!previous || Math.hypot(eventPos.x - previous.x, eventPos.y - previous.y) >= (1.2 / viewScale)) {
+                path.points.push({ x: eventPos.x, y: eventPos.y, t: performance.now(), p: eventSp.p });
+              }
+            });
+          } else {
+            path.points.push({ x: pos.x, y: pos.y, t: performance.now(), p: sp.p });
+          }
+          pages[currentPageIndex].paths = paths;
+          scheduleRedraw();
+        }
+        return;
+      }
+
       if (e.pointerType === 'touch' && activeCanvasTouches.has(e.pointerId)) {
         activeCanvasTouches.set(e.pointerId, { x: sp.x, y: sp.y });
         if (isTwoFingerGesture && activeCanvasTouches.size === 2) {
@@ -4406,6 +4504,19 @@
     });
 
     function finishPointer(e) {
+      if (e.pointerType === 'pen' && penPointerStreams.has(e.pointerId)) {
+        penPointerStreams.delete(e.pointerId);
+        try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+        if (penPointerStreams.size === 0) {
+          if (pendingHistorySnapshot && !isSamePageState(pendingHistorySnapshot, capturePageState())) {
+            pushHistorySnapshot(pendingHistorySnapshot);
+          }
+          pendingHistorySnapshot = null;
+          saveProgress();
+        }
+        return;
+      }
+
       if (e.pointerType === 'touch') {
         activeCanvasTouches.delete(e.pointerId);
         if (isTwoFingerGesture) {
