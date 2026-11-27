@@ -1140,6 +1140,12 @@
       highlighter: '#000000',
       sparkle: '#000000'
     };
+    const penTypeSizes = {
+      normal: 8,
+      soft: 8,
+      highlighter: 8,
+      sparkle: 8
+    };
     let eyedropperActive = false;
     let penSize = 8;
     let eraserSize = 20;
@@ -3418,8 +3424,9 @@
       }
 
       lastActivePenPointerId = pointerId;
-      penSize = settings.size;
       penType = settings.penType;
+      penSize = penTypeSizes[penType] || 8;
+      settings.size = penSize;
       currentColor = penTypeColors[penType] || '#000000';
       settings.color = currentColor;
       sizeRange.value = penSize;
@@ -3439,10 +3446,13 @@
       cancelEyedropper();
       const wasEraser = (currentTool === 'eraser');
       penTypeColors[penType] = currentColor;
+      penTypeSizes[penType] = penSize;
       currentTool = 'pen'; selectToolBtn.classList.remove('active'); zoomMenuBtn.classList.remove('active'); textToolBtn.classList.remove('active');
       penType = type;
       currentColor = penTypeColors[type] || '#000000';
       penTypeColors[type] = currentColor;
+      penSize = penTypeSizes[type] || 8;
+      penTypeSizes[type] = penSize;
       penMenuBtn.classList.add('active'); eraserMenuBtn.classList.remove('active');
       if (lastActivePenPointerId !== null) {
         const settings = penPointerSettings.get(lastActivePenPointerId);
@@ -3691,6 +3701,7 @@
         updateEraserCursor();
       } else {
         penSize = parseInt(val);
+        penTypeSizes[penType] = penSize;
         sizeLabelTitle.textContent = "筆大小調整";
         if (lastActivePenPointerId !== null) {
           const settings = penPointerSettings.get(lastActivePenPointerId);
