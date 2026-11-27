@@ -1134,6 +1134,12 @@
     let eraserType = 'normal';
     let zoomMode = 'in';
     let currentColor = '#000000';
+    const penTypeColors = {
+      normal: '#000000',
+      soft: '#000000',
+      highlighter: '#000000',
+      sparkle: '#000000'
+    };
     let eyedropperActive = false;
     let penSize = 8;
     let eraserSize = 20;
@@ -3412,9 +3418,10 @@
       }
 
       lastActivePenPointerId = pointerId;
-      currentColor = settings.color;
       penSize = settings.size;
       penType = settings.penType;
+      currentColor = penTypeColors[penType] || '#000000';
+      settings.color = currentColor;
       sizeRange.value = penSize;
       updateSizeUI(penSize);
 
@@ -3431,11 +3438,18 @@
     function setPenType(type) {
       cancelEyedropper();
       const wasEraser = (currentTool === 'eraser');
+      penTypeColors[penType] = currentColor;
       currentTool = 'pen'; selectToolBtn.classList.remove('active'); zoomMenuBtn.classList.remove('active'); textToolBtn.classList.remove('active');
-      penType = type; penMenuBtn.classList.add('active'); eraserMenuBtn.classList.remove('active');
+      penType = type;
+      currentColor = penTypeColors[type] || '#000000';
+      penTypeColors[type] = currentColor;
+      penMenuBtn.classList.add('active'); eraserMenuBtn.classList.remove('active');
       if (lastActivePenPointerId !== null) {
         const settings = penPointerSettings.get(lastActivePenPointerId);
-        if (settings) settings.penType = type;
+        if (settings) {
+          settings.penType = type;
+          settings.color = currentColor;
+        }
       }
       activeTouchEraserPos = null;
       document.querySelectorAll('#penDropdown .sub-menu button').forEach(b => b.classList.remove('active'));
@@ -3508,7 +3522,6 @@
 
     function applyTextColorChange(newColor) {
       textColor = newColor;
-      currentColor = newColor;
       if (isEditingText) {
         inlineTextEditor.style.color = newColor;
         if (editingTextObj) editingTextObj.color = newColor;
@@ -3520,6 +3533,15 @@
         saveProgress();
       }
       updateTextFloatingBarVisibility();
+    }
+
+    function applyPenColor(newColor) {
+      currentColor = newColor;
+      penTypeColors[penType] = newColor;
+      if (lastActivePenPointerId !== null) {
+        const settings = penPointerSettings.get(lastActivePenPointerId);
+        if (settings) settings.color = newColor;
+      }
     }
 
     function applyTextFontSizeChange(newSize) {
@@ -3590,11 +3612,7 @@
 
     document.querySelectorAll('.color-box').forEach(box => {
       box.addEventListener('click', (e) => {
-        e.stopPropagation(); currentColor = box.getAttribute('data-color'); advancedPanel.classList.remove('show');
-        if (lastActivePenPointerId !== null) {
-          const settings = penPointerSettings.get(lastActivePenPointerId);
-          if (settings) settings.color = currentColor;
-        }
+        e.stopPropagation(); applyPenColor(box.getAttribute('data-color')); advancedPanel.classList.remove('show');
         if (currentTool === 'eraser') setPenType(penType);
       });
     });
@@ -4342,11 +4360,7 @@
         e.preventDefault();
         const color = sampleCanvasColor(e.clientX, e.clientY);
         if (color) {
-          currentColor = color;
-          if (lastActivePenPointerId !== null) {
-            const settings = penPointerSettings.get(lastActivePenPointerId);
-            if (settings) settings.color = color;
-          }
+          applyPenColor(color);
           cancelEyedropper();
           if (currentTool === 'eraser') setPenType(penType);
         }
