@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="數位白板">
   <title>數位白板</title>
   
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333'><path d='M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z'/><path d='M7.5 13c1.38 0 2.5-1.12 2.5-2.5S8.88 8 7.5 8 5 9.12 5 10.5 6.12 13 7.5 13zm0-3c.28 0 .5.22.5.5s-.22.5-.5.5-.5-.22-.5-.5.22-.5.5-.5zM7.5 14c-1.83 0-5.5.92-5.5 2.75V19h11v-2.25C13 14.92 9.33 14 7.5 14zm9.5-6h-4v2h4V8zm0 4h-4v2h4v-2z'/></svg>">
+  <link rel="icon" type="image/png" href="app-icon.png">
   <link id="appleTouchIcon" rel="apple-touch-icon" href="">
   <link id="pwaManifest" rel="manifest" href="">
 
@@ -904,20 +904,16 @@
 
   <script>
     (function setupIpadPwaAssets() {
-      try {
+      const iconImage = new Image();
+      iconImage.onload = () => {
         const iconCanvas = document.createElement('canvas');
         iconCanvas.width = 180;
         iconCanvas.height = 180;
         const ictx = iconCanvas.getContext('2d');
-        ictx.fillStyle = '#2b3137';
-        ictx.fillRect(0, 0, 180, 180);
-        ictx.strokeStyle = '#ffc107';
-        ictx.lineWidth = 10;
-        ictx.strokeRect(22, 28, 136, 108);
-        ictx.fillStyle = '#ffffff';
-        ictx.font = 'bold 28px sans-serif';
-        ictx.textAlign = 'center';
-        ictx.fillText('數位白板', 90, 92);
+        const scale = Math.min(iconCanvas.width / iconImage.width, iconCanvas.height / iconImage.height);
+        const width = iconImage.width * scale;
+        const height = iconImage.height * scale;
+        ictx.drawImage(iconImage, (iconCanvas.width - width) / 2, (iconCanvas.height - height) / 2, width, height);
         const pngIconUrl = iconCanvas.toDataURL('image/png');
         document.getElementById('appleTouchIcon').href = pngIconUrl;
 
@@ -932,7 +928,8 @@
         };
         const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
         document.getElementById('pwaManifest').href = URL.createObjectURL(manifestBlob);
-      } catch (e) {}
+      };
+      iconImage.src = 'app-icon.png';
     })();
 
     if (window.pdfjsLib) {

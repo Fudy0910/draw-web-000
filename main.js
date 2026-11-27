@@ -216,6 +216,7 @@ function createWindow() {
     minWidth: 720,
     minHeight: 480,
     title: '數位白板',
+    icon: path.join(__dirname, 'app-icon.png'),
     backgroundColor: '#00000000',
     frame: false,
     transparent: true,
