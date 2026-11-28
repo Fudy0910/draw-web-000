@@ -38,7 +38,7 @@
       touch-action: none;
     }
 
-    input[type="text"], textarea {
+    input[type="text"], input[type="number"], textarea {
       -webkit-user-select: text;
       user-select: text;
       touch-action: auto;
@@ -79,7 +79,6 @@
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
     }
     .toolbar::-webkit-scrollbar { display: none; }
-    #minimizeBtn { order: 1; }
     body.toolbar-left #mainToolbar { right: auto; left: 0; }
     .toolbar button, .toolbar label {
       width: 46px;
@@ -249,6 +248,58 @@
     .window-picker-item img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #202428; border-radius: 5px; }
     .window-picker-item span { display: block; overflow: hidden; margin-top: 7px; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
     #windowPickerStatus { min-height: 18px; color: #cbd2d9; font-size: 13px; }
+
+    .app-dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 4500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+    }
+    .app-dialog.show { display: flex; }
+    .app-dialog-panel {
+      width: min(520px, 100%);
+      max-height: min(760px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 20px;
+      background: #2b3137;
+      border: 1px solid #4e565e;
+      border-radius: 14px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      overflow-y: auto;
+      touch-action: pan-y;
+    }
+    .app-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .app-dialog-header h2 { font-size: 19px; }
+    .app-dialog button {
+      border: 0;
+      border-radius: 7px;
+      padding: 8px 12px;
+      background: #4a535c;
+      color: #fff;
+      cursor: pointer;
+    }
+    .app-dialog button:hover { background: #1674c4; }
+    .app-dialog-close { flex-shrink: 0; }
+    .dialog-status, .dialog-help { color: #cbd2d9; font-size: 13px; line-height: 1.5; }
+    .page-manager-section { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid #49515a; border-radius: 9px; background: #343b42; }
+    .page-manager-section h3 { font-size: 15px; }
+    .page-manager-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .page-manager-controls label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+    .page-manager-controls input { width: 84px; padding: 8px; border: 1px solid #68737e; border-radius: 6px; background: #20252a; color: #fff; font-size: 15px; }
+    .page-manager-controls .danger-action { background: #c93646; }
+    .page-manager-controls .danger-action:hover { background: #e44b5b; }
+    .page-range-separator { color: #cbd2d9; }
+    @media (max-width: 480px) {
+      .app-dialog { padding: 10px; }
+      .app-dialog-panel { padding: 15px; }
+    }
 
     .toolbar svg.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     
@@ -592,7 +643,9 @@
       touch-action: none;
       cursor: none;
     }
-    .page-indicator { background: #444; color: #ffc107; padding: 4px 2px; border-radius: 5px; font-size: 10px; font-weight: bold; text-align: center; width: 46px; flex-shrink: 0; }
+    .page-indicator { background: #444; color: #ffc107; padding: 4px 2px; border-radius: 5px; font-size: 10px; font-weight: bold; text-align: center; width: 46px; flex-shrink: 0; cursor: pointer; }
+    .page-indicator:hover { background: #555; }
+    .page-navigation { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -697,24 +750,18 @@
   <input type="file" id="filePickerInput" accept=".dwb,application/vnd.fudy.whiteboard+json,.pdf,application/pdf,image/*" multiple style="display:none;">
 
   <div class="toolbar" id="mainToolbar">
-    <button id="minimizeBtn" class="minimize-btn" title="最小化至螢幕右下角" hidden>
-      <svg class="icon" viewBox="0 0 24 24">
-        <path d="M5 5h14v14H5z"></path>
-        <path d="M8 8l8 8M10 16h6v-6"></path>
-      </svg>
-    </button>
-    <button id="closeBtn" class="close-btn" title="關閉">
+    <button id="closeBtn" data-toolbar-setting="close" class="close-btn" title="關閉白板">
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
         <line x1="12" y1="2" x2="12" y2="12"></line>
       </svg>
     </button>
 
-    <button id="selectToolBtn">
+    <button id="selectToolBtn" data-toolbar-setting="select">
       <svg class="icon" viewBox="0 0 24 24"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
     </button>
 
-    <div class="dropdown-container" id="penDropdown">
+    <div class="dropdown-container" id="penDropdown" data-toolbar-setting="pen">
       <button id="penMenuBtn" class="active" title="筆工具" aria-label="筆工具">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 4.5 5 5L8 21l-5 1 1-5L14.5 4.5Z"/><path d="m12.5 6.5 5 5M4 17l3 3M3 22c5-1 8-3 10-6"/></svg>
       </button>
@@ -726,7 +773,7 @@
       </div>
     </div>
 
-    <div class="dropdown-container" id="eraserDropdown">
+    <div class="dropdown-container" id="eraserDropdown" data-toolbar-setting="eraser">
       <button id="eraserMenuBtn" title="橡皮擦工具" aria-label="橡皮擦工具"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 3 8 8-9 9H7l-5-5 12-12Z"/><path d="m6 12 6 6M5 21h15M3 8H1M5 4 3.5 2.5"/></svg></button>
       <div class="sub-menu" id="eraserSubMenu">
         <button id="eraseNormal" class="active" title="筆刷擦除" aria-label="筆刷擦除"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H7l-4-4c-1-1-1-3 0-4L13 2l9 9-9 9Z" fill="currentColor"/><path d="m6 11 6 6" stroke="#343a40" stroke-width="1.5"/></svg></button>
@@ -735,7 +782,7 @@
       </div>
     </div>
 
-    <button id="textToolBtn" title="輸入文字">
+    <button id="textToolBtn" data-toolbar-setting="text" title="輸入文字">
       <svg class="icon" viewBox="0 0 24 24">
         <polyline points="4 7 4 4 20 4 20 7"></polyline>
         <line x1="9" y1="20" x2="15" y2="20"></line>
@@ -743,7 +790,7 @@
       </svg>
     </button>
 
-    <div class="dropdown-container" id="colorDropdownContainer">
+    <div class="dropdown-container" id="colorDropdownContainer" data-toolbar-setting="color">
       <button id="colorBtn">
         <svg class="icon" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="10"/>
@@ -812,7 +859,7 @@
       </div>
     </div>
 
-    <div class="dropdown-container" id="zoomDropdown">
+    <div class="dropdown-container" id="zoomDropdown" data-toolbar-setting="zoom">
       <button id="zoomMenuBtn">
         <svg class="icon" viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="7"/>
@@ -839,52 +886,93 @@
       </div>
     </div>
 
-    <button id="undoBtn" disabled>
+    <button id="undoBtn" data-toolbar-setting="undo" disabled>
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M9 14L4 9l5-5"/>
         <path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
       </svg>
     </button>
 
-    <button id="redoBtn" disabled>
+    <button id="redoBtn" data-toolbar-setting="redo" disabled>
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M15 14l5-5-5-5"/>
         <path d="M4 20v-7a4 4 0 0 1 4-4h12"/>
       </svg>
     </button>
 
-    <button id="openFileBtn" class="info">
+    <button id="openFileBtn" data-toolbar-setting="openFile" class="info">
       <svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     </button>
 
-    <button id="screenshotBtn" class="info">
+    <button id="screenshotBtn" data-toolbar-setting="screenshot" class="info">
       <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
     </button>
 
-    <button id="prevPageBtn">◀</button>
-    <span class="page-indicator" id="pageIndicator">1/1</span>
-    <button id="nextPageBtn">▶</button>
+    <div id="pageNavigation" class="page-navigation" data-toolbar-setting="pageNavigation">
+      <button id="prevPageBtn" title="上一頁" aria-label="上一頁">◀</button>
+      <span class="page-indicator" id="pageIndicator" role="button" tabindex="0" title="點擊管理頁面" aria-label="開啟頁面管理">1/1</span>
+      <button id="nextPageBtn" title="下一頁" aria-label="下一頁">▶</button>
+    </div>
     
-    <button id="newPageBtn" class="info">
+    <button id="newPageBtn" data-toolbar-setting="newPage" class="info">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
 
-    <button id="deletePageBtn" class="warning">🗑️</button>
+    <button id="deletePageBtn" data-toolbar-setting="deletePage" class="warning" title="刪除目前頁面" aria-label="刪除目前頁面">🗑️</button>
 
-    <button id="clearBtn" class="danger">
+    <button id="clearBtn" data-toolbar-setting="clear" class="danger">
       <svg class="icon" viewBox="0 0 24 24">
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
 
-    <button id="saveBtn" class="success" title="下載可續畫白板檔（.dwb）" aria-label="下載可續畫白板檔">
+    <button id="saveBtn" data-toolbar-setting="save" class="success" title="下載可續畫白板檔（.dwb）" aria-label="下載可續畫白板檔">
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
     </button>
+
+    <button id="minimizeBtn" data-toolbar-setting="minimize" class="minimize-btn" title="最小化至螢幕右下角" hidden>
+      <svg class="icon" viewBox="0 0 24 24">
+        <path d="M5 5h14v14H5z"></path>
+        <path d="M8 8l8 8M10 16h6v-6"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div id="pageManagerDialog" class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="pageManagerTitle">
+    <section class="app-dialog-panel">
+      <header class="app-dialog-header">
+        <h2 id="pageManagerTitle">頁面管理</h2>
+        <button id="pageManagerClose" class="app-dialog-close" type="button">完成</button>
+      </header>
+      <section class="page-manager-section">
+        <h3>快速跳頁</h3>
+        <div class="page-manager-controls">
+          <label for="jumpPageInput">前往第</label>
+          <input id="jumpPageInput" type="number" min="1" step="1" inputmode="numeric">
+          <span>頁</span>
+          <button id="jumpPageBtn" type="button">前往</button>
+        </div>
+      </section>
+      <section class="page-manager-section">
+        <h3>刪除頁面範圍</h3>
+        <div class="page-manager-controls">
+          <label for="deletePageStartInput">第</label>
+          <input id="deletePageStartInput" type="number" min="1" step="1" inputmode="numeric">
+          <span class="page-range-separator">至</span>
+          <label for="deletePageEndInput">第</label>
+          <input id="deletePageEndInput" type="number" min="1" step="1" inputmode="numeric">
+          <span>頁</span>
+          <button id="deletePageRangeBtn" class="danger-action" type="button">刪除範圍</button>
+        </div>
+        <p class="dialog-help">包含起始與結束頁。刪除全部頁面時會自動保留一張空白頁。</p>
+      </section>
+      <p id="pageManagerStatus" class="dialog-status" aria-live="polite"></p>
+    </section>
   </div>
 
   <div id="miniControls" aria-label="白板快速操作">
@@ -1002,6 +1090,14 @@
     const newPageBtn = document.getElementById('newPageBtn');
     const deletePageBtn = document.getElementById('deletePageBtn');
     const pageIndicator = document.getElementById('pageIndicator');
+    const pageManagerDialog = document.getElementById('pageManagerDialog');
+    const pageManagerClose = document.getElementById('pageManagerClose');
+    const jumpPageInput = document.getElementById('jumpPageInput');
+    const jumpPageBtn = document.getElementById('jumpPageBtn');
+    const deletePageStartInput = document.getElementById('deletePageStartInput');
+    const deletePageEndInput = document.getElementById('deletePageEndInput');
+    const deletePageRangeBtn = document.getElementById('deletePageRangeBtn');
+    const pageManagerStatus = document.getElementById('pageManagerStatus');
 
     const snippingLayer = document.getElementById('snippingLayer');
     const snipCtx = snippingLayer.getContext('2d');
@@ -1032,6 +1128,45 @@
       window.whiteboardApp.onMiniBackground(isDark => {
         document.body.classList.toggle('mini-dark', isDark);
       });
+    }
+
+    const toolbarSettingElements = Array.from(mainToolbar.children)
+      .filter(element => element.dataset.toolbarSetting);
+    const toolbarSettingIds = toolbarSettingElements.map(element => element.dataset.toolbarSetting);
+    const toolbarSettings = { order: toolbarSettingIds.slice(), hidden: [] };
+    function applyToolbarSettings(settings) {
+      if (settings) {
+        const validOrder = settings.order.filter((id, index) =>
+          toolbarSettingIds.includes(id) && settings.order.indexOf(id) === index
+        );
+        toolbarSettings.order = validOrder.concat(toolbarSettingIds.filter(id => !validOrder.includes(id)));
+        toolbarSettings.hidden = settings.hidden.filter(id => toolbarSettingIds.includes(id));
+      }
+      const hiddenSettings = new Set(toolbarSettings.hidden);
+      toolbarSettings.order.forEach(id => {
+        const element = toolbarSettingElements.find(item => item.dataset.toolbarSetting === id);
+        if (!element) return;
+        mainToolbar.appendChild(element);
+        element.hidden = hiddenSettings.has(id) || (id === 'minimize' && !window.whiteboardApp);
+      });
+    }
+
+    applyToolbarSettings();
+    if (window.whiteboardApp) {
+      let toolbarSettingsRevision = 0;
+      window.whiteboardApp.onToolbarSettingsUpdated(settings => {
+        toolbarSettingsRevision += 1;
+        applyToolbarSettings(settings);
+      });
+      const initialSettingsRevision = toolbarSettingsRevision;
+      window.whiteboardApp.getToolbarSettings()
+        .then(settings => {
+          if (toolbarSettingsRevision === initialSettingsRevision) applyToolbarSettings(settings);
+        })
+        .catch(error => {
+          console.error('無法載入工具列設定。', error);
+          alert(`無法載入工具列設定：${error.message || '請稍後再試。'}`);
+        });
     }
 
     toolbarSideToggle.addEventListener('click', () => {
@@ -1102,17 +1237,35 @@
     });
 
     closeBtn.addEventListener('click', async () => {
-      if (confirm("確定要關閉數位白板嗎？")) {
-        await saveProgress();
-        if (window.whiteboardApp) {
-          await window.whiteboardApp.close();
-          return;
-        }
-        window.close();
-        setTimeout(() => {
-          document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;background:#2b3137;color:#fff;font-family:sans-serif;gap:16px;"><h2 style="color:#ffc107;">數位白板已關閉</h2><p style="color:#ccc;font-size:14px;">畫布進度已自動儲存，您現在可以關閉此視窗或分頁。</p><button onclick="location.reload()" style="padding:10px 20px;border:none;border-radius:8px;background:#007bff;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;">重新開啟白板</button></div>';
-        }, 150);
+      let shouldSave;
+      try {
+        shouldSave = window.whiteboardApp
+          ? await window.whiteboardApp.confirmClose()
+          : confirm('即將關閉白板，是否儲存？');
+      } catch (error) {
+        console.error('無法確認白板關閉選項。', error);
+        alert(error.message || '無法確認白板關閉選項。');
+        return;
       }
+
+      try {
+        await progressReady;
+        if (shouldSave && !(await saveDrawingFile())) return;
+        await saveProgress();
+      } catch (error) {
+        console.error('關閉前無法儲存白板進度。', error);
+        alert(error.message || '關閉前無法儲存白板進度。');
+        return;
+      }
+
+      if (window.whiteboardApp) {
+        await window.whiteboardApp.hideToTray();
+        return;
+      }
+      window.close();
+      setTimeout(() => {
+        document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;background:#2b3137;color:#fff;font-family:sans-serif;gap:16px;"><h2 style="color:#ffc107;">數位白板已關閉</h2><p style="color:#ccc;font-size:14px;">畫布進度已自動儲存，您現在可以關閉此視窗或分頁。</p><button onclick="location.reload()" style="padding:10px 20px;border:none;border-radius:8px;background:#007bff;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;">重新開啟白板</button></div>';
+      }, 150);
     });
 
     const MIN_VIEW_SCALE = 0.1;
@@ -1171,7 +1324,11 @@
     let prevTwoFingerMidX = 0;
     let prevTwoFingerMidY = 0;
 
-    let pages = [{ paths: [], images: [], texts: [], undoStack: [], redoStack: [], viewScale: 1.0, viewOffsetX: 0, viewOffsetY: 0 }];
+    function createEmptyPage() {
+      return { paths: [], images: [], texts: [], undoStack: [], redoStack: [], viewScale: 1.0, viewOffsetX: 0, viewOffsetY: 0 };
+    }
+
+    let pages = [createEmptyPage()];
     let currentPageIndex = 0;
     let progressReady = Promise.resolve();
     let paths = pages[0].paths;
@@ -1833,6 +1990,90 @@
       pageIndicator.textContent = `${currentPageIndex + 1}/${pages.length}`;
     }
 
+    function openPageManager() {
+      jumpPageInput.min = '1';
+      jumpPageInput.max = String(pages.length);
+      jumpPageInput.value = String(currentPageIndex + 1);
+      deletePageStartInput.min = '1';
+      deletePageStartInput.max = String(pages.length);
+      deletePageStartInput.value = String(currentPageIndex + 1);
+      deletePageEndInput.min = '1';
+      deletePageEndInput.max = String(pages.length);
+      deletePageEndInput.value = String(currentPageIndex + 1);
+      pageManagerStatus.textContent = '';
+      pageManagerDialog.classList.add('show');
+      jumpPageInput.focus();
+      jumpPageInput.select();
+    }
+
+    function closePageManager() {
+      pageManagerDialog.classList.remove('show');
+    }
+
+    function getPageInputValue(input, label) {
+      const value = Number(input.value);
+      if (!Number.isInteger(value) || value < 1 || value > pages.length) {
+        pageManagerStatus.textContent = `${label}請輸入 1 到 ${pages.length} 之間的頁碼。`;
+        input.focus();
+        return null;
+      }
+      return value;
+    }
+
+    pageIndicator.addEventListener('click', openPageManager);
+    pageIndicator.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openPageManager();
+      }
+    });
+    pageManagerClose.addEventListener('click', closePageManager);
+    pageManagerDialog.addEventListener('click', event => {
+      if (event.target === pageManagerDialog) closePageManager();
+    });
+    window.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (pageManagerDialog.classList.contains('show')) closePageManager();
+    });
+    jumpPageBtn.addEventListener('click', () => {
+      const targetPage = getPageInputValue(jumpPageInput, '目標頁碼');
+      if (targetPage === null) return;
+      switchPage(targetPage - 1);
+      scheduleSaveProgress(300);
+      closePageManager();
+    });
+    jumpPageInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') jumpPageBtn.click();
+    });
+    deletePageRangeBtn.addEventListener('click', async () => {
+      const startPage = getPageInputValue(deletePageStartInput, '起始頁碼');
+      if (startPage === null) return;
+      const endPage = getPageInputValue(deletePageEndInput, '結束頁碼');
+      if (endPage === null) return;
+      if (startPage > endPage) {
+        pageManagerStatus.textContent = '起始頁碼不能大於結束頁碼。';
+        deletePageStartInput.focus();
+        return;
+      }
+      if (!confirm(`確定要刪除第 ${startPage} 至第 ${endPage} 頁嗎？此操作無法復原。`)) return;
+
+      removePageRange(startPage - 1, endPage - 1);
+      try {
+        await saveProgress();
+      } catch (error) {
+        console.error('刪除頁面後無法儲存白板進度。', error);
+        pageManagerStatus.textContent = '頁面已刪除，但無法儲存變更。';
+        return;
+      }
+      closePageManager();
+    });
+    deletePageStartInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') deletePageRangeBtn.click();
+    });
+    deletePageEndInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') deletePageRangeBtn.click();
+    });
+
     function resetViewTransform() {
       viewScale = 1.0;
       viewOffsetX = 0;
@@ -1859,9 +2100,9 @@
       saveProgress();
     }
 
-    function switchPage(index) {
+    function switchPage(index, syncCurrentPage = true) {
       if (index < 0 || index >= pages.length) return;
-      syncPageViewState();
+      if (syncCurrentPage) syncPageViewState();
       currentPageIndex = index;
       const page = pages[currentPageIndex];
       if (!page.undoStack) page.undoStack = [];
@@ -1881,9 +2122,169 @@
       redraw();
     }
 
-    newPageBtn.addEventListener('click', () => {
-      pages.push({ paths: [], images: [], texts: [], undoStack: [], redoStack: [], viewScale: 1.0, viewOffsetX: 0, viewOffsetY: 0 });
+    function removePageRange(firstIndex, lastIndex) {
+      if (
+        !Number.isInteger(firstIndex) ||
+        !Number.isInteger(lastIndex) ||
+        firstIndex < 0 ||
+        lastIndex < firstIndex ||
+        lastIndex >= pages.length
+      ) {
+        throw new Error('無效的頁面範圍。');
+      }
+
+      const removedCount = lastIndex - firstIndex + 1;
+      const previousIndex = currentPageIndex;
+      syncPageViewState();
+      pages.splice(firstIndex, removedCount);
+      if (pages.length === 0) pages.push(createEmptyPage());
+
+      if (previousIndex < firstIndex) {
+        currentPageIndex = previousIndex;
+      } else if (previousIndex > lastIndex) {
+        currentPageIndex = previousIndex - removedCount;
+      } else {
+        currentPageIndex = Math.min(firstIndex, pages.length - 1);
+      }
+      switchPage(currentPageIndex, false);
+    }
+
+    function appendNewPage() {
+      pages.push(createEmptyPage());
       switchPage(pages.length - 1);
+    }
+
+    function createPageOverview() {
+      syncPageViewState();
+      const previousState = {
+        currentPageIndex,
+        paths,
+        images,
+        texts,
+        viewScale,
+        viewOffsetX,
+        viewOffsetY,
+        selectedPaths,
+        selectedImages,
+        selectedTexts,
+        groupBounds,
+        origGroupBounds,
+        selectionBox,
+        isSelecting,
+        interactionState,
+        currentTool
+      };
+      const wasCompact = document.body.classList.contains('compact');
+      const thumbnailCanvas = document.createElement('canvas');
+      thumbnailCanvas.width = 192;
+      thumbnailCanvas.height = 108;
+      const thumbnailContext = thumbnailCanvas.getContext('2d');
+      const thumbnails = [];
+
+      try {
+        if (wasCompact) {
+          document.body.classList.remove('compact');
+          initCanvas();
+        }
+        currentTool = 'pen';
+        selectedPaths = [];
+        selectedImages = [];
+        selectedTexts = [];
+        groupBounds = null;
+        origGroupBounds = null;
+        selectionBox = null;
+        isSelecting = false;
+        interactionState = null;
+
+        pages.forEach((page, index) => {
+          currentPageIndex = index;
+          paths = page.paths;
+          images = page.images;
+          texts = page.texts || [];
+          viewScale = page.viewScale !== undefined ? page.viewScale : 1.0;
+          viewOffsetX = page.viewOffsetX !== undefined ? page.viewOffsetX : 0;
+          viewOffsetY = page.viewOffsetY !== undefined ? page.viewOffsetY : 0;
+          redraw();
+          thumbnailContext.fillStyle = '#ffffff';
+          thumbnailContext.fillRect(0, 0, thumbnailCanvas.width, thumbnailCanvas.height);
+          thumbnailContext.drawImage(canvas, 0, 0, thumbnailCanvas.width, thumbnailCanvas.height);
+          thumbnails.push(thumbnailCanvas.toDataURL('image/png'));
+        });
+      } finally {
+        currentPageIndex = previousState.currentPageIndex;
+        paths = previousState.paths;
+        images = previousState.images;
+        texts = previousState.texts;
+        viewScale = previousState.viewScale;
+        viewOffsetX = previousState.viewOffsetX;
+        viewOffsetY = previousState.viewOffsetY;
+        selectedPaths = previousState.selectedPaths;
+        selectedImages = previousState.selectedImages;
+        selectedTexts = previousState.selectedTexts;
+        groupBounds = previousState.groupBounds;
+        origGroupBounds = previousState.origGroupBounds;
+        selectionBox = previousState.selectionBox;
+        isSelecting = previousState.isSelecting;
+        interactionState = previousState.interactionState;
+        currentTool = previousState.currentTool;
+        if (wasCompact) document.body.classList.add('compact');
+        updatePageIndicator();
+        updateUndoRedoButtons();
+        redraw();
+      }
+
+      return {
+        currentPageIndex: previousState.currentPageIndex,
+        pages: thumbnails.map((thumbnail, index) => ({
+          index,
+          number: index + 1,
+          thumbnail
+        }))
+      };
+    }
+
+    async function addPageFromSettings() {
+      appendNewPage();
+      await saveProgress();
+      return createPageOverview();
+    }
+
+    async function deletePageFromSettings(pageIndex) {
+      if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pages.length) {
+        throw new Error('指定的頁面不存在。');
+      }
+      removePageRange(pageIndex, pageIndex);
+      await saveProgress();
+      return createPageOverview();
+    }
+
+    if (window.whiteboardApp) {
+      window.whiteboardApp.onPageRequest(async request => {
+        try {
+          await progressReady;
+          let result;
+          if (request.action === 'list') {
+            result = createPageOverview();
+          } else if (request.action === 'add') {
+            result = await addPageFromSettings();
+          } else if (request.action === 'delete') {
+            result = await deletePageFromSettings(request.pageIndex);
+          } else {
+            throw new Error('未知的頁面管理操作。');
+          }
+          window.whiteboardApp.respondToPageRequest({ requestId: request.requestId, result });
+        } catch (error) {
+          console.error('無法管理白板頁面。', error);
+          window.whiteboardApp.respondToPageRequest({
+            requestId: request.requestId,
+            error: error.message || '無法管理白板頁面。'
+          });
+        }
+      });
+    }
+
+    newPageBtn.addEventListener('click', () => {
+      appendNewPage();
       saveProgress();
     });
 
@@ -1893,9 +2294,7 @@
         return;
       }
       if (confirm(`確定要刪除「第 ${currentPageIndex + 1} 頁」嗎？`)) {
-        pages.splice(currentPageIndex, 1);
-        if (currentPageIndex >= pages.length) currentPageIndex = pages.length - 1;
-        switchPage(currentPageIndex);
+        removePageRange(currentPageIndex, currentPageIndex);
         saveProgress();
       }
     });
@@ -4919,7 +5318,7 @@
       redraw(); saveProgress();
     });
 
-    function saveDrawingFile() {
+    async function saveDrawingFile() {
       try {
         const payload = createProgressPayload();
         payload.format = 'fudy-whiteboard';
@@ -4927,11 +5326,8 @@
         const content = JSON.stringify(payload);
 
         if (window.whiteboardApp && typeof window.whiteboardApp.saveWhiteboardFile === 'function') {
-          window.whiteboardApp.saveWhiteboardFile(content).catch(error => {
-            console.error('白板檔案儲存失敗。', error);
-            alert(`無法儲存白板檔案：${error.message || '未知錯誤。'}`);
-          });
-          return;
+          const result = await window.whiteboardApp.saveWhiteboardFile(content);
+          return !result.canceled;
         }
 
         const file = new Blob([content], {
@@ -4945,9 +5341,11 @@
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 10000);
+        return true;
       } catch (error) {
         console.error('白板檔案下載失敗。', error);
         alert(`無法下載白板檔案：${error.message || '未知錯誤。'}`);
+        return false;
       }
     }
 

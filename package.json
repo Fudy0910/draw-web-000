@@ -31,6 +31,7 @@
       "index.html",
       "main.js",
       "preload.js",
+      "settings.html",
       "app-icon.png",
       "package.json"
     ]

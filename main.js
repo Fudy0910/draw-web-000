@@ -1,20 +1,254 @@
-const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, screen, shell, Tray } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
+const packageMetadata = require('./package.json');
 
 let mainWindow = null;
+let settingsWindow = null;
+let tray = null;
+let isQuitting = false;
+let restoreMainAfterSettings = false;
+let restoreMiniAfterSettings = false;
+let restoreMiniBounds = null;
+let nextPageRequestId = 0;
+const pendingPageRequests = new Map();
+const launchedHidden = process.argv.includes('--hidden');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const toolbarSettingIds = [
+  'close', 'select', 'pen', 'eraser', 'text', 'color', 'zoom', 'undo', 'redo',
+  'openFile', 'screenshot', 'pageNavigation', 'newPage', 'deletePage', 'clear',
+  'save', 'minimize'
+];
 
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    if (!mainWindow.isVisible()) mainWindow.show();
-    mainWindow.focus();
+    showMainWindow();
   });
 }
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow(true);
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.setKiosk(true);
+  mainWindow.setFullScreen(true);
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function openSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
+
+  restoreMainAfterSettings = !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible();
+  restoreMiniAfterSettings = false;
+  restoreMiniBounds = null;
+  if (restoreMainAfterSettings) {
+    const bounds = mainWindow.getBounds();
+    restoreMiniAfterSettings = bounds.width <= 200 && bounds.height <= 100;
+    if (restoreMiniAfterSettings) {
+      restoreMiniBounds = bounds;
+      const { bounds: displayBounds } = screen.getDisplayMatching(bounds);
+      mainWindow.setAlwaysOnTop(false);
+      mainWindow.setFocusable(true);
+      mainWindow.setBounds(displayBounds);
+      mainWindow.setKiosk(true);
+      mainWindow.setFullScreen(true);
+    }
+    mainWindow.hide();
+  }
+
+  const win = new BrowserWindow({
+    width: 560,
+    height: 760,
+    minWidth: 480,
+    minHeight: 520,
+    title: '數位白板 - 系統設定',
+    icon: path.join(__dirname, 'app-icon.png'),
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  settingsWindow = win;
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => {
+    if (settingsWindow === win) settingsWindow = null;
+    if (restoreMainAfterSettings && !isQuitting && mainWindow && !mainWindow.isDestroyed()) {
+      if (restoreMiniAfterSettings && restoreMiniBounds) {
+        mainWindow.setKiosk(false);
+        mainWindow.setFullScreen(false);
+        mainWindow.setMinimumSize(0, 0);
+        mainWindow.setFocusable(false);
+        mainWindow.setAlwaysOnTop(true, 'floating');
+        mainWindow.setBounds(restoreMiniBounds);
+        mainWindow.showInactive();
+      } else {
+        showMainWindow();
+      }
+    }
+    restoreMainAfterSettings = false;
+    restoreMiniAfterSettings = false;
+    restoreMiniBounds = null;
+  });
+  win.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function createTray() {
+  tray = new Tray(path.join(__dirname, 'app-icon.png'));
+  tray.setToolTip('數位白板');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '開啟全螢幕白板', click: showMainWindow },
+    { label: '系統設定', click: openSettingsWindow },
+    {
+      label: '關閉白板',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+      }
+    },
+    { type: 'separator' },
+    { label: '結束程式', click: () => app.quit() },
+    { type: 'separator' },
+    {
+      label: `數位白板 v${app.getVersion()}｜${packageMetadata.author} 開發｜${new Date().getFullYear()} 年`,
+      enabled: false
+    }
+  ]));
+  tray.on('click', openSettingsWindow);
+}
+
+function normalizeToolbarSettings(settings) {
+  if (!settings || !Array.isArray(settings.order) || !Array.isArray(settings.hidden)) {
+    throw new Error('工具列設定格式無效。');
+  }
+  const validIds = new Set(toolbarSettingIds);
+  const order = settings.order;
+  const hidden = settings.hidden;
+  if (
+    order.length !== toolbarSettingIds.length ||
+    order.some(id => !validIds.has(id)) ||
+    new Set(order).size !== toolbarSettingIds.length ||
+    hidden.some(id => !validIds.has(id)) ||
+    new Set(hidden).size !== hidden.length
+  ) {
+    throw new Error('工具列設定包含無效或重複的工具。');
+  }
+  return { version: 1, order: order.slice(), hidden: hidden.slice() };
+}
+
+ipcMain.handle('app:get-toolbar-settings', async () => {
+  try {
+    const contents = await fs.readFile(path.join(app.getPath('userData'), 'toolbar-settings.json'), 'utf8');
+    const savedSettings = JSON.parse(contents);
+    const normalizedSettings = normalizeToolbarSettings(savedSettings);
+    if (savedSettings.version === undefined) {
+      normalizedSettings.order = normalizedSettings.order.filter(id => id !== 'minimize');
+      normalizedSettings.order.push('minimize');
+      await fs.writeFile(
+        path.join(app.getPath('userData'), 'toolbar-settings.json'),
+        JSON.stringify(normalizedSettings, null, 2),
+        'utf8'
+      );
+    } else if (savedSettings.version !== 1) {
+      throw new Error('不支援此版本的工具列設定。');
+    }
+    return normalizedSettings;
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+});
+
+ipcMain.handle('app:save-toolbar-settings', async (_event, settings) => {
+  const normalizedSettings = normalizeToolbarSettings(settings);
+  const settingsPath = path.join(app.getPath('userData'), 'toolbar-settings.json');
+  await fs.writeFile(settingsPath, JSON.stringify(normalizedSettings, null, 2), 'utf8');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:toolbar-settings-updated', normalizedSettings);
+  }
+  return normalizedSettings;
+});
+
+function requestPageRenderer(action, data = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    throw new Error('白板尚未啟動，無法管理頁面。');
+  }
+
+  const win = mainWindow;
+  const requestId = ++nextPageRequestId;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingPageRequests.delete(requestId);
+      reject(new Error('白板頁面管理逾時，請重試。'));
+    }, 30000);
+    pendingPageRequests.set(requestId, { resolve, reject, timeout });
+
+    const sendRequest = () => {
+      if (win.isDestroyed()) {
+        clearTimeout(timeout);
+        pendingPageRequests.delete(requestId);
+        reject(new Error('白板視窗已關閉，無法管理頁面。'));
+        return;
+      }
+      win.webContents.send('app:page-request', { requestId, action, ...data });
+    };
+    if (win.webContents.isLoadingMainFrame()) {
+      win.webContents.once('did-finish-load', sendRequest);
+    } else {
+      sendRequest();
+    }
+  });
+}
+
+ipcMain.handle('app:get-pages', () => requestPageRenderer('list'));
+ipcMain.handle('app:add-page', () => requestPageRenderer('add'));
+ipcMain.handle('app:delete-page', (_event, pageIndex) => {
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) {
+    throw new Error('無效的頁碼。');
+  }
+  return requestPageRenderer('delete', { pageIndex });
+});
+
+ipcMain.on('app:page-request-response', (event, response) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return;
+  if (!response || !Number.isInteger(response.requestId)) return;
+
+  const pendingRequest = pendingPageRequests.get(response.requestId);
+  if (!pendingRequest) return;
+  clearTimeout(pendingRequest.timeout);
+  pendingPageRequests.delete(response.requestId);
+  if (typeof response.error === 'string' && response.error) {
+    pendingRequest.reject(new Error(response.error));
+  } else {
+    pendingRequest.resolve(response.result);
+  }
+});
+
+ipcMain.handle('app:confirm-close', async event => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) throw new Error('白板視窗已關閉。');
+
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question',
+    title: '數位白板',
+    message: '即將關閉白板，是否儲存？',
+    buttons: ['是', '否'],
+    defaultId: 0,
+    cancelId: 1
+  });
+  return response === 0;
+});
 
 function getOwnWindowHandle(win) {
   const handle = win.getNativeWindowHandle();
@@ -173,8 +407,8 @@ ipcMain.handle('file:save-whiteboard', async (event, content) => {
   return { canceled: false, filePath: outputPath };
 });
 
-ipcMain.handle('app:close', () => {
-  app.quit();
+ipcMain.handle('app:hide-to-tray', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
 });
 
 ipcMain.handle('app:minimize-to-corner', event => {
@@ -220,7 +454,7 @@ ipcMain.handle('app:restore-canvas', event => {
   win.focus();
 });
 
-function createWindow() {
+function createWindow(showOnReady = true) {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -234,6 +468,7 @@ function createWindow() {
     transparent: true,
     fullscreen: true,
     kiosk: true,
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -244,6 +479,14 @@ function createWindow() {
   });
 
   mainWindow = win;
+  win.once('ready-to-show', () => {
+    if (showOnReady) showMainWindow();
+  });
+  win.on('close', event => {
+    if (isQuitting) return;
+    event.preventDefault();
+    win.hide();
+  });
   let backgroundCheckTimer = null;
   win.on('move', () => {
     if (win.isDestroyed()) return;
@@ -274,11 +517,22 @@ function createWindow() {
 }
 
 if (hasSingleInstanceLock) {
+  app.on('before-quit', () => {
+    isQuitting = true;
+  });
+
   app.whenReady().then(() => {
-    createWindow();
+    if (app.isPackaged) {
+      app.setLoginItemSettings({
+        openAtLogin: true,
+        args: ['--hidden']
+      });
+    }
+    createTray();
+    createWindow(!launchedHidden);
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (BrowserWindow.getAllWindows().length === 0) createWindow(true);
     });
   });
 

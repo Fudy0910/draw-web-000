@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>數位白板 - 系統設定</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 22px;
+      background: #20252a;
+      color: #f5f7f9;
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: 22px; }
+    p { color: #cbd2d9; font-size: 14px; line-height: 1.5; }
+    button {
+      min-width: 38px;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 7px;
+      background: #4a535c;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: #1674c4; }
+    .settings-list { display: flex; flex-direction: column; gap: 8px; }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid #49515a;
+      border-radius: 8px;
+      background: #343b42;
+    }
+    .settings-row input { width: 17px; height: 17px; accent-color: #1684e8; }
+    .settings-row-label { flex: 1; min-width: 0; font-size: 14px; }
+    .settings-move-btn { padding: 6px !important; }
+    .settings-move-btn:disabled { opacity: 0.4; cursor: default; }
+    #settingsStatus { min-height: 20px; color: #cbd2d9; font-size: 13px; }
+    .settings-tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+    .settings-tab { flex: 1; background: #343b42; }
+    .settings-tab.active { background: #1674c4; }
+    [hidden] { display: none !important; }
+    .page-settings-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .page-settings-toolbar p { margin: 0; }
+    #pageAddBtn { flex-shrink: 0; background: #218838; }
+    #pageAddBtn:hover { background: #28a745; }
+    #pageList { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 14px; }
+    .page-card { min-width: 0; overflow: hidden; border: 1px solid #49515a; border-radius: 9px; background: #343b42; }
+    .page-card.current { border-color: #1684e8; box-shadow: 0 0 0 1px #1684e8; }
+    .page-thumbnail { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; }
+    .page-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px; }
+    .page-card-label { font-size: 14px; font-weight: 600; }
+    .page-current-label { color: #72b7ff; font-size: 12px; }
+    .page-delete-btn { background: #b52e3a; }
+    .page-delete-btn:hover { background: #d43b48; }
+    #pageSettingsStatus { min-height: 20px; color: #cbd2d9; font-size: 13px; }
+    @media (max-width: 520px) {
+      body { padding: 14px; }
+      .settings-row { gap: 7px; padding: 7px; }
+      .page-settings-toolbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>系統設定</h1>
+      <button id="settingsClose" type="button">完成</button>
+    </header>
+    <nav class="settings-tabs" aria-label="設定分類">
+      <button class="settings-tab active" type="button" data-panel="toolbarPanel" aria-selected="true">工具列</button>
+      <button class="settings-tab" type="button" data-panel="pagePanel" aria-selected="false">頁面設定</button>
+    </nav>
+    <section id="toolbarPanel">
+      <p>勾選工具以顯示，使用上下按鈕調整排列順序。設定會自動儲存。</p>
+      <div id="settingsList" class="settings-list"></div>
+      <p id="settingsStatus" role="status" aria-live="polite"></p>
+    </section>
+    <section id="pagePanel" hidden>
+      <div class="page-settings-toolbar">
+        <p>管理白板頁面。刪除最後一頁時會建立一張空白頁。</p>
+        <button id="pageAddBtn" type="button">＋ 新增頁面</button>
+      </div>
+      <div id="pageList" aria-live="polite"></div>
+      <p id="pageSettingsStatus" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script>
+    const toolbarLabels = {
+      close: '關閉白板',
+      select: '選取工具',
+      pen: '筆工具',
+      eraser: '橡皮擦',
+      text: '文字工具',
+      color: '顏色與筆觸',
+      zoom: '縮放工具',
+      undo: '復原',
+      redo: '重做',
+      openFile: '開啟檔案',
+      screenshot: '螢幕擷取',
+      pageNavigation: '頁面導覽',
+      newPage: '新增頁面',
+      deletePage: '刪除目前頁面',
+      clear: '清空本頁',
+      save: '下載白板檔',
+      minimize: '最小化面板'
+    };
+    const toolbarIds = Object.keys(toolbarLabels);
+    const settingsList = document.getElementById('settingsList');
+    const settingsStatus = document.getElementById('settingsStatus');
+    const pageList = document.getElementById('pageList');
+    const pageSettingsStatus = document.getElementById('pageSettingsStatus');
+    const pageAddBtn = document.getElementById('pageAddBtn');
+    let toolbarSettings = { order: toolbarIds.slice(), hidden: [] };
+    let pageOverview = null;
+
+    function normalizeSettings(settings) {
+      if (!settings || !Array.isArray(settings.order) || !Array.isArray(settings.hidden)) {
+        throw new Error('工具列設定格式無效。');
+      }
+      const validIds = new Set(toolbarIds);
+      if (
+        settings.order.length !== toolbarIds.length ||
+        settings.order.some(id => !validIds.has(id)) ||
+        new Set(settings.order).size !== toolbarIds.length ||
+        settings.hidden.some(id => !validIds.has(id)) ||
+        new Set(settings.hidden).size !== settings.hidden.length
+      ) {
+        throw new Error('工具列設定包含無效或重複的工具。');
+      }
+      return { order: settings.order.slice(), hidden: settings.hidden.slice() };
+    }
+
+    function copySettings(settings) {
+      return { order: settings.order.slice(), hidden: settings.hidden.slice() };
+    }
+
+    async function saveSettings(previousSettings) {
+      try {
+        toolbarSettings = normalizeSettings(await window.whiteboardApp.saveToolbarSettings(toolbarSettings));
+        settingsStatus.textContent = '設定已儲存。';
+      } catch (error) {
+        console.error('無法儲存工具列設定。', error);
+        toolbarSettings = previousSettings;
+        settingsStatus.textContent = `無法儲存設定：${error.message || '請稍後再試。'}`;
+      }
+      renderSettings();
+    }
+
+    function renderSettings() {
+      settingsList.replaceChildren();
+      toolbarSettings.order.forEach((id, index) => {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = !toolbarSettings.hidden.includes(id);
+        checkbox.setAttribute('aria-label', `顯示${toolbarLabels[id]}`);
+        checkbox.addEventListener('change', () => {
+          const previousSettings = copySettings(toolbarSettings);
+          if (checkbox.checked) {
+            toolbarSettings.hidden = toolbarSettings.hidden.filter(hiddenId => hiddenId !== id);
+          } else if (!toolbarSettings.hidden.includes(id)) {
+            toolbarSettings.hidden.push(id);
+          }
+          saveSettings(previousSettings);
+        });
+
+        const label = document.createElement('span');
+        label.className = 'settings-row-label';
+        label.textContent = toolbarLabels[id];
+
+        const moveUp = document.createElement('button');
+        moveUp.type = 'button';
+        moveUp.className = 'settings-move-btn';
+        moveUp.textContent = '↑';
+        moveUp.title = '上移';
+        moveUp.setAttribute('aria-label', `將${toolbarLabels[id]}上移`);
+        moveUp.disabled = index === 0;
+        moveUp.addEventListener('click', () => moveSetting(index, -1));
+
+        const moveDown = document.createElement('button');
+        moveDown.type = 'button';
+        moveDown.className = 'settings-move-btn';
+        moveDown.textContent = '↓';
+        moveDown.title = '下移';
+        moveDown.setAttribute('aria-label', `將${toolbarLabels[id]}下移`);
+        moveDown.disabled = index === toolbarSettings.order.length - 1;
+        moveDown.addEventListener('click', () => moveSetting(index, 1));
+
+        row.append(checkbox, label, moveUp, moveDown);
+        settingsList.appendChild(row);
+      });
+    }
+
+    function moveSetting(index, offset) {
+      const targetIndex = index + offset;
+      if (targetIndex < 0 || targetIndex >= toolbarSettings.order.length) return;
+      const previousSettings = copySettings(toolbarSettings);
+      const [id] = toolbarSettings.order.splice(index, 1);
+      toolbarSettings.order.splice(targetIndex, 0, id);
+      saveSettings(previousSettings);
+    }
+
+    function renderPages(overview) {
+      pageOverview = overview;
+      pageList.replaceChildren();
+      overview.pages.forEach(page => {
+        const card = document.createElement('article');
+        card.className = `page-card${page.index === overview.currentPageIndex ? ' current' : ''}`;
+
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'page-thumbnail';
+        thumbnail.src = page.thumbnail;
+        thumbnail.alt = `第 ${page.number} 頁預覽`;
+
+        const footer = document.createElement('div');
+        footer.className = 'page-card-footer';
+        const label = document.createElement('div');
+        label.className = 'page-card-label';
+        label.textContent = `第 ${page.number} 頁`;
+        if (page.index === overview.currentPageIndex) {
+          const current = document.createElement('div');
+          current.className = 'page-current-label';
+          current.textContent = '目前頁面';
+          label.appendChild(current);
+        }
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'page-delete-btn';
+        deleteButton.textContent = '刪除';
+        deleteButton.setAttribute('aria-label', `刪除第 ${page.number} 頁`);
+        deleteButton.addEventListener('click', () => deletePage(page));
+
+        footer.append(label, deleteButton);
+        card.append(thumbnail, footer);
+        pageList.appendChild(card);
+      });
+    }
+
+    function setPageActionsDisabled(disabled) {
+      pageAddBtn.disabled = disabled;
+      pageList.querySelectorAll('button').forEach(button => {
+        button.disabled = disabled;
+      });
+    }
+
+    async function loadPages() {
+      pageSettingsStatus.textContent = '正在載入頁面預覽…';
+      setPageActionsDisabled(true);
+      try {
+        pageOverview = await window.whiteboardApp.getPages();
+        renderPages(pageOverview);
+        pageSettingsStatus.textContent = '';
+      } catch (error) {
+        console.error('無法載入白板頁面。', error);
+        pageSettingsStatus.textContent = `無法載入頁面：${error.message || '請稍後再試。'}`;
+      } finally {
+        setPageActionsDisabled(false);
+      }
+    }
+
+    async function deletePage(page) {
+      const message = pageOverview.pages.length === 1
+        ? '目前只有一頁，刪除後會建立新的空白頁。確定要刪除嗎？'
+        : `確定要刪除第 ${page.number} 頁嗎？此操作無法復原。`;
+      if (!confirm(message)) return;
+
+      pageSettingsStatus.textContent = '正在刪除頁面…';
+      setPageActionsDisabled(true);
+      try {
+        const updatedOverview = await window.whiteboardApp.deletePage(page.index);
+        renderPages(updatedOverview);
+        pageSettingsStatus.textContent = '';
+      } catch (error) {
+        console.error('無法刪除白板頁面。', error);
+        pageSettingsStatus.textContent = `無法刪除頁面：${error.message || '請稍後再試。'}`;
+      } finally {
+        setPageActionsDisabled(false);
+      }
+    }
+
+    pageAddBtn.addEventListener('click', async () => {
+      pageSettingsStatus.textContent = '正在新增頁面…';
+      setPageActionsDisabled(true);
+      try {
+        const updatedOverview = await window.whiteboardApp.addPage();
+        renderPages(updatedOverview);
+        pageSettingsStatus.textContent = '';
+      } catch (error) {
+        console.error('無法新增白板頁面。', error);
+        pageSettingsStatus.textContent = `無法新增頁面：${error.message || '請稍後再試。'}`;
+      } finally {
+        setPageActionsDisabled(false);
+      }
+    });
+
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.settings-tab').forEach(item => {
+          const selected = item === tab;
+          item.classList.toggle('active', selected);
+          item.setAttribute('aria-selected', String(selected));
+        });
+        const showPages = tab.dataset.panel === 'pagePanel';
+        document.getElementById('toolbarPanel').hidden = showPages;
+        document.getElementById('pagePanel').hidden = !showPages;
+        if (showPages && !pageOverview) loadPages();
+      });
+    });
+
+    document.getElementById('settingsClose').addEventListener('click', () => window.close());
+    window.addEventListener('keydown', event => {
+      if (event.key === 'Escape') window.close();
+    });
+
+    async function loadSettings() {
+      try {
+        const savedSettings = await window.whiteboardApp.getToolbarSettings();
+        if (savedSettings) toolbarSettings = normalizeSettings(savedSettings);
+      } catch (error) {
+        console.error('無法載入工具列設定。', error);
+        settingsStatus.textContent = `無法載入設定：${error.message || '請稍後再試。'}`;
+      }
+      renderSettings();
+    }
+
+    renderSettings();
+    loadSettings();
+  </script>
+</body>
+</html>
