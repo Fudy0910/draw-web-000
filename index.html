@@ -3888,6 +3888,7 @@
       currentTool = 'eraser'; selectToolBtn.classList.remove('active'); zoomMenuBtn.classList.remove('active'); textToolBtn.classList.remove('active');
       eraserType = type; eraserMenuBtn.classList.add('active'); penMenuBtn.classList.remove('active');
       activeTouchEraserPos = null;
+      lastObjectEraserPos = null;
       document.querySelectorAll('#eraserDropdown .sub-menu button').forEach(b => b.classList.remove('active'));
       document.getElementById('erase' + (type === 'normal' ? 'Normal' : type === 'object' ? 'Object' : 'Lasso')).classList.add('active');
       sizeRange.value = eraserSize; updateSizeUI(eraserSize);
@@ -4386,7 +4387,7 @@
           currentPath = { type: penType, color: currentColor, size: parseInt(sizeRange.value), points: [stampedPos], opacity: 1.0, rotation: 0, noStartTaper: false, noEndTaper: false };
           paths.push(currentPath); pages[currentPageIndex].paths = paths; scheduleRedraw();
         } else if (currentTool === 'eraser' && eraserType === 'lasso') { lassoPoints = [pos]; scheduleRedraw(); }
-        else if (currentTool === 'eraser' && eraserType === 'object') { eraseObjectAt(pos); }
+        else if (currentTool === 'eraser' && eraserType === 'object') { lastObjectEraserPos = pos; eraseObjectAt(pos, pos); }
         else if (currentTool === 'eraser' && eraserType === 'normal') {
           if (e.pointerType !== 'mouse') {
             activeTouchEraserPos = pos;
@@ -4399,6 +4400,7 @@
     }
 
     let lastEraserPos = null;
+    let lastObjectEraserPos = null;
     function moveAction(e) {
       const sp = getScreenPos(e);
 
@@ -4659,7 +4661,10 @@
             activeTouchEraserPos = pos;
             scheduleRedraw();
           }
-        } else if (currentTool === 'eraser' && eraserType === 'object') { eraseObjectAt(pos); }
+        } else if (currentTool === 'eraser' && eraserType === 'object') {
+          eraseObjectAt(lastObjectEraserPos || pos, pos);
+          lastObjectEraserPos = pos;
+        }
         else if (currentTool === 'eraser' && eraserType === 'lasso') { lassoPoints.push(pos); scheduleRedraw(); }
       }
     }
@@ -4738,6 +4743,7 @@
         }
       } else if (isDrawing) {
         isDrawing = false;
+        if (currentTool === 'eraser' && eraserType === 'object') lastObjectEraserPos = null;
         if (currentTool === 'eraser' && eraserType === 'lasso' && lassoPoints.length > 2) {
           paths = paths.filter(p => {
             if (p.rotation) bakePathRotation(p);
@@ -5172,7 +5178,7 @@
         if (!p.points || p.points.length === 0) continue;
 
         const strokeHalfW = (p.type === 'highlighter' ? p.size * 2.5 : p.size) * 0.5;
-        const effectiveRadius = baseRadius + strokeHalfW * 0.85;
+        const effectiveRadius = baseRadius + strokeHalfW;
 
         let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
         for (let k = 0; k < p.points.length; k++) {
@@ -5269,31 +5275,98 @@
       }
     }
 
-    function eraseObjectAt(pos) {
-      const baseRadius = Math.max(20 / viewScale, parseInt(sizeRange.value) * 1.5);
+    function circleIntersectsRotatedRect(cx, cy, radius, rect) {
+      const rx = rect.x + rect.w / 2;
+      const ry = rect.y + rect.h / 2;
+      const rot = rect.rotation || 0;
+      const dx = cx - rx;
+      const dy = cy - ry;
+      const cos = Math.cos(-rot);
+      const sin = Math.sin(-rot);
+      const lx = dx * cos - dy * sin;
+      const ly = dx * sin + dy * cos;
+      const nearestX = Math.max(-rect.w / 2, Math.min(rect.w / 2, lx));
+      const nearestY = Math.max(-rect.h / 2, Math.min(rect.h / 2, ly));
+      return Math.hypot(lx - nearestX, ly - nearestY) <= radius;
+    }
+
+    function distanceBetweenSegments(ax, ay, bx, by, cx, cy, dx, dy) {
+      if (segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy)) return 0;
+      return Math.min(
+        distToSegment(ax, ay, cx, cy, dx, dy),
+        distToSegment(bx, by, cx, cy, dx, dy),
+        distToSegment(cx, cy, ax, ay, bx, by),
+        distToSegment(dx, dy, ax, ay, bx, by)
+      );
+    }
+
+    function segmentIntersectsRotatedRect(pos1, pos2, rect, radius) {
+      const rx = rect.x + rect.w / 2;
+      const ry = rect.y + rect.h / 2;
+      const rot = rect.rotation || 0;
+      const cos = Math.cos(-rot);
+      const sin = Math.sin(-rot);
+      const toLocal = (p) => {
+        const dx = p.x - rx;
+        const dy = p.y - ry;
+        return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+      };
+      const a = toLocal(pos1);
+      const b = toLocal(pos2);
+
+      const left = -rect.w / 2;
+      const right = rect.w / 2;
+      const top = -rect.h / 2;
+      const bottom = rect.h / 2;
+      if (segmentIntersectsRect(a.x, a.y, b.x, b.y, left, top, rect.w, rect.h)) return true;
+      const edges = [
+        [left, top, right, top], [right, top, right, bottom],
+        [right, bottom, left, bottom], [left, bottom, left, top]
+      ];
+      for (const edge of edges) {
+        if (distanceBetweenSegments(a.x, a.y, b.x, b.y,
+          edge[0], edge[1], edge[2], edge[3]) <= radius) return true;
+      }
+      return false;
+    }
+
+    function eraseObjectAt(pos1, pos2 = pos1) {
+      const eraserRadius = getNormalEraserRadius();
       let changed = false;
       const pCount = paths.length;
       paths = paths.filter(p => {
         if (p.rotation) bakePathRotation(p);
         const strokeHalfW = (p.type === 'highlighter' ? p.size * 2.5 : p.size) * 0.5;
-        const threshold = baseRadius + strokeHalfW * 0.5;
+        const collisionRadius = eraserRadius + strokeHalfW;
+
         if (p.points.length === 1) {
-          return Math.hypot(p.points[0].x - pos.x, p.points[0].y - pos.y) > threshold;
+          const pt = p.points[0];
+          return !intersectSegmentCapsule(pt.x, pt.y, pt.x, pt.y, pos1.x, pos1.y, pos2.x, pos2.y, collisionRadius);
         }
         for (let j = 0; j < p.points.length - 1; j++) {
-          if (distToSegment(pos.x, pos.y, p.points[j].x, p.points[j].y, p.points[j + 1].x, p.points[j + 1].y) <= threshold) {
+          const a = p.points[j];
+          const b = p.points[j + 1];
+          if (intersectSegmentCapsule(a.x, a.y, b.x, b.y, pos1.x, pos1.y, pos2.x, pos2.y, collisionRadius)) {
             return false;
           }
         }
         return true;
       });
       if (paths.length !== pCount) changed = true;
+
       const imgCount = images.length;
-      images = images.filter(img => !isPointInRotatedRect(pos.x, pos.y, img, 0));
+      images = images.filter(img => !circleIntersectsRotatedRect(pos1.x, pos1.y, eraserRadius, img) &&
+        (pos1.x === pos2.x && pos1.y === pos2.y || !segmentIntersectsRotatedRect(pos1, pos2, img, eraserRadius)));
       if (images.length !== imgCount) changed = true;
+
       const textCount = texts.length;
-      texts = texts.filter(t => !isPointInRotatedRect(pos.x, pos.y, t, 4 / viewScale));
+      texts = texts.filter(t => {
+        measureTextObject(t);
+        return !circleIntersectsRotatedRect(pos1.x, pos1.y, eraserRadius, t) &&
+          (pos1.x === pos2.x && pos1.y === pos2.y || !segmentIntersectsRotatedRect(pos1, pos2, t, eraserRadius));
+      });
       if (texts.length !== textCount) changed = true;
+
       if (changed) { pages[currentPageIndex].paths = paths; pages[currentPageIndex].images = images; pages[currentPageIndex].texts = texts; scheduleRedraw(); }
     }
 
