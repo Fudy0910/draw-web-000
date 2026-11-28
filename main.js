@@ -111,12 +111,6 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '開啟全螢幕白板', click: showMainWindow },
     { label: '系統設定', click: openSettingsWindow },
-    {
-      label: '關閉白板',
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
-      }
-    },
     { type: 'separator' },
     { label: '結束程式', click: () => app.quit() },
     { type: 'separator' },
